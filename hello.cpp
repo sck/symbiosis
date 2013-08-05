@@ -22,8 +22,12 @@ void d(const char *s) {
 }
 
 SYMBIOSIS_MAIN({
+  printf("\nh1: ");
   add_parameter(123)(456); call(h1);
+  printf("\nh2: ");
   add_parameter(id_new("Hello: "))(123)(456); call(h2);
+  printf("\nh3: ");
   add_parameter(id_new("Hello: ")); call(h3);
+  printf("\nprintf: ");
   add_parameter(id_new("Hello: %d, %d\n"))(123)(456); vararg_call(printf);
 });
