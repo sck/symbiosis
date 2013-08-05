@@ -1,11 +1,10 @@
 #! /bin/sh
 M=`uname -m | tr 'a-z' 'A-Z'`
 S=`uname -s | tr 'a-z' 'A-Z'`
+test -f ./local.sh && . ./local.sh
+CXXCOMPILE="$CXX -std=c++11 $CXX_COMPILE_FLAGS -I . -D$M -D$S -O2 -g -Wall -Werror -Wno-unused "
 ((test \! -f symbiosis.o || test symbiosis.cpp -nt symbiosis.o || \
-     test symbiosis.hpp -nt symbiosis.o ) && \
-    clang++ -std=c++11 -I . -D$M -D$S -O2 -g \
-        -Wall -Werror -Wno-unused -c symbiosis.cpp) 
+     test symbiosis.hpp -nt symbiosis.o ) && $CXXCOMPILE -c symbiosis.cpp)
 
-test -f symbiosis.o && clang++ -std=c++11 -I . -D$M -D$S -O2 -g -Wall -Werror \
-  -Wno-unused -o h hello.cpp symbiosis.o
+test -f symbiosis.o && $CXXCOMPILE $CXX_LINK_FLAGS -o h hello.cpp symbiosis.o
 
