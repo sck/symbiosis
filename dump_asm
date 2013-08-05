@@ -1,0 +1,2 @@
+#! /bin/sh
+objdump -S -M intel -d a.out

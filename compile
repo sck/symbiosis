@@ -1,0 +1,11 @@
+#! /bin/sh
+M=`uname -m | tr 'a-z' 'A-Z'`
+S=`uname -s | tr 'a-z' 'A-Z'`
+((test \! -f symbiosis.o || test symbiosis.cpp -nt symbiosis.o || \
+     test symbiosis.hpp -nt symbiosis.o ) && \
+    clang++ -std=c++11 -I . -D$M -D$S -O2 -g \
+        -Wall -Werror -Wno-unused -c symbiosis.cpp) 
+
+test -f symbiosis.o && clang++ -std=c++11 -I . -D$M -D$S -O2 -g -Wall -Werror \
+  -Wno-unused -o h hello.cpp symbiosis.o
+
