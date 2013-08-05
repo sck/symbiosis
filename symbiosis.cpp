@@ -211,7 +211,25 @@ namespace symbiosis {
     call(f);
   }
 
+  size_t __p = 0;
+
+  void f(const char *s, int i) {
+    __p += (size_t)s + i;
+  }
+
+  bool am_i_pic() { 
+    printf("foo\n");
+    uchar *p = (uchar *)am_i_pic;
+    int i = 0;
+    uchar c = 0;
+    do {
+      c = p[i++];
+    } while (i < 10 && c != 0x48 && c != 0xbf);
+    return c == 0x48;
+  }
+
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
+    printf("am_i_pic: %d\n", am_i_pic());
     command_file = c;
     virtual_code_start = start;
     virtual_code_end = end;
