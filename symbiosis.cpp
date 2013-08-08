@@ -11,6 +11,8 @@ using namespace std;
 
 namespace symbiosis {
 
+  bool am_i_pic = false;
+
   class exception : public std::exception {
     const char *what_;
   public:
@@ -182,6 +184,7 @@ namespace symbiosis {
     ++parameter_count;
     return p;
   }
+
   int __offset = 0;
   const char* call_offset(uchar *out_current_code_pos, void *__virt_f) { 
     auto virt_f = (uchar*)__virt_f;
@@ -217,9 +220,9 @@ namespace symbiosis {
     __p += (size_t)s + i;
   }
 
-  bool am_i_pic() { 
+  bool __am_i_pic() { 
     printf("foo\n");
-    uchar *p = (uchar *)am_i_pic;
+    uchar *p = (uchar *)__am_i_pic;
     int i = 0;
     uchar c = 0;
     do {
@@ -229,7 +232,8 @@ namespace symbiosis {
   }
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
-    printf("am_i_pic: %d\n", am_i_pic());
+    am_i_pic = __am_i_pic();
+    printf("am_i_pic: %d\n", am_i_pic);
     command_file = c;
     virtual_code_start = start;
     virtual_code_end = end;
