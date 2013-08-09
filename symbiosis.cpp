@@ -11,7 +11,27 @@ using namespace std;
 
 namespace symbiosis {
 
+  bool intel = false;
+  bool arm = false;
   bool am_i_pic = false;
+
+  void figure_out_cpu_architecture() {
+    uchar *p = (uchar *)figure_out_cpu_architecture;
+    if (p[3] == 0xe9 || p[3] == 0xe5) { cout << "ARM" << endl; 
+        arm = true; return }
+    cout << "Unknown CPU id: "; dump(p, 4);
+  }
+
+  bool __am_i_pic() { 
+    uchar *p = (uchar *)__am_i_pic;
+    int i = 0;
+    uchar c = 0;
+    do {
+      c = p[i++];
+    } while (i < 10 && c != 0x48 && c != 0xbf);
+    return c == 0x48;
+  }
+
 
   class exception : public std::exception {
     const char *what_;
@@ -184,7 +204,6 @@ namespace symbiosis {
   }
 
   bool intel() { return true; }
-  bool arm() { return false; }
 
   id add_parameter(id p) {
     if (parameter_count >= parameters_max) {
@@ -203,7 +222,7 @@ namespace symbiosis {
       }
     } else if (p.is_integer()) {
       //cout << "is_integer" << endl;
-      if (intel()) {
+      if (intel) {
         //cout << "intel" << endl;
         if (p.is_32()) {
           //cout << "is_32" << endl;
@@ -214,7 +233,7 @@ namespace symbiosis {
           emit(register_parameters_intel_64[parameter_count]);
           emit(p.i64(), 8);
         }
-      } else if (arm()) {
+      } else if (arm) {
         emit(register_parameters_intel_32[parameter_count]);
       }
     }
@@ -246,17 +265,8 @@ namespace symbiosis {
     __p += (size_t)s + i;
   }
 
-  bool __am_i_pic() { 
-    uchar *p = (uchar *)__am_i_pic;
-    int i = 0;
-    uchar c = 0;
-    do {
-      c = p[i++];
-    } while (i < 10 && c != 0x48 && c != 0xbf);
-    return c == 0x48;
-  }
-
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
+    figure_out_cpu_architecture();
     am_i_pic = __am_i_pic();
     printf("am_i_pic: %d\n", am_i_pic);
     command_file = c;
