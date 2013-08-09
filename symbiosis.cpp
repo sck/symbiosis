@@ -7,6 +7,8 @@
 
 #include <vector>
 
+#include "cpu_defines.hpp"
+
 using namespace std;
 
 namespace symbiosis {
@@ -21,23 +23,23 @@ namespace symbiosis {
   bool arm = false;
   bool am_i_pic = false;
 
-  void figure_out_cpu_architecture() {
+  bool figure_out_cpu_architecture() {
     uchar *p = (uchar *)figure_out_cpu_architecture;
-    cout << "CPU id: "; dump(p, 4);
-    if (p[0] == 0x55 && p[1] == 0x48) { cout << "Intel" << endl; 
-        intel = true; return; }
-    if (p[3] == 0xe9 || p[3] == 0xe5) { cout << "ARM" << endl; 
-        arm = true; return; }
+    if (p[0] == I_PUSH_BP_55 && p[1] == I_MOV_48) { cout << "Intel" << endl; 
+        intel = true; return true; }
+    if (p[3] == A_PUSH_e9 || p[3] == A_LDR_e5) { cout << "ARM" << endl; 
+        arm = true; return true; }
     cout << "Unknown CPU id: "; dump(p, 4);
   }
 
   bool __am_i_pic() { 
     uchar *p = (uchar *)__am_i_pic;
+    printf("am i pic?\n");
     int i = 0;
     uchar c = 0;
     do {
       c = p[i++];
-    } while (i < 10 && c != 0x48 && c != 0xbf);
+    } while (i < 10 && c != I_MOV_48 && c != I_LEA_bf);
     return c == 0x48;
   }
 
@@ -205,6 +207,8 @@ namespace symbiosis {
     dump(s, l);
   }
 
+  void emit(uchar uc) { emit((const char *)&uc, sizeof(uc)); }
+
   id add_parameter(id p) {
     if (parameter_count >= parameters_max) {
       fprintf(stderr, "Too many parameters!\n");
@@ -243,19 +247,19 @@ namespace symbiosis {
 
   void jmp(void *f) {
     uchar *out_current_code_pos = out_c;
-    emit("\xe9"); // JMP
+    emit(I_JMP_e9); 
     emit(call_offset(out_current_code_pos, f), 4);
   }
 
   void __call(void *f) {
     uchar *out_current_code_pos = out_c;
-    emit("\xe8"); // call
+    emit(I_CALL_e8); 
     emit(call_offset(out_current_code_pos, f), 4);
     parameter_count = 0;
   }
 
   void __vararg_call(void *f) {
-    emit("\x30\xc0"); // xor    al,al
+    emit(I_XOR_30); emit(0xc0); // xor    al,al
     call(f);
   }
 
@@ -266,7 +270,7 @@ namespace symbiosis {
   }
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
-    figure_out_cpu_architecture();
+    if (!figure_out_cpu_architecture()) exit(1);
     am_i_pic = __am_i_pic();
     printf("am_i_pic: %d\n", am_i_pic);
     command_file = c;
