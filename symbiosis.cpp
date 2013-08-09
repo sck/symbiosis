@@ -79,7 +79,6 @@ namespace symbiosis {
     if (out_s + virtual_size + 1 > out_strings_end) 
         throw exception("Strings: Out of memory");
     memcpy(out_s, p, virtual_size + 1);
-    //cout << "new string" << endl;
     out_s += virtual_size + 1;
   };  
 
@@ -135,9 +134,38 @@ namespace symbiosis {
     //printf("\n");
   }
 
+  int __offset = 0;
+  const char* call_offset(uchar *out_current_code_pos, void *__virt_f) { 
+    auto virt_f = (uchar*)__virt_f;
+    ssize_t out_start_distance = out_current_code_pos - out_code_start;
+    ssize_t virt_dist_from_code_start = virt_f - virtual_code_start;
+    __offset = virt_dist_from_code_start - out_start_distance - 5;
+    cout << "__virt_f: " << __virt_f << endl;
+    //cout << "call_offset: " << __offset << " virt: " << virt_dist_from_code_start << " out: " << out_start_distance << endl;
+    return (const char*)&__offset;
+  }
+
+  const char* rip_relative_offset(uchar *out_current_code_pos, 
+      uchar *virt_adr) { 
+    ssize_t distance = out_current_code_pos - out_code_start;
+    ssize_t virt_dist_from_code_start = (size_t)virt_adr - 
+        (size_t)virtual_code_start - distance;
+    __offset = virt_dist_from_code_start - 7;
+    printf("virt_dist_from_code_start: %zx %x, string ofs: %zd\n", 
+        (size_t)virt_adr, __offset,
+        (size_t)(out_s - out_strings_start));
+    return (const char*)&__offset;
+  }
+
+
   int parameter_count = 0;
   const char *register_parameters_intel_32[] = {
       "\xbf", /*edi*/ "\xbe", /*esi*/ "\xba" /*edx*/ };
+  
+  const char *register_rip_relative_parameters_intel_64[] = {
+    "\x48\x8d\x3d", /* rdi */ "\x48\x8d\x35", /* rsi */ 
+    "\x48\x8d\x15" /* rdx */ };
+
   const char *register_parameters_arm_32[] = {
       "\xe5\x9f\x00", /*r0*/ "\xe5\x9f\x10", /*r1*/ "\xe5\x9f\x20" /*r2*/ };
   const char *register_parameters_intel_64[] = {
@@ -164,7 +192,16 @@ namespace symbiosis {
       return p;
     }
     //cout << "parameter_count: " << parameter_count << " "; p.describe();
-    if (p.is_integer() || p.is_charp()) {
+    if (p.is_charp()) {
+      if (!am_i_pic) {
+        emit(register_parameters_intel_32[parameter_count]);
+        emit(p.i32(), 4);
+      } else {
+        uchar *out_current_code_pos = out_c;
+        emit(register_rip_relative_parameters_intel_64[parameter_count]);
+        emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
+      }
+    } else if (p.is_integer()) {
       //cout << "is_integer" << endl;
       if (intel()) {
         //cout << "intel" << endl;
@@ -183,17 +220,6 @@ namespace symbiosis {
     }
     ++parameter_count;
     return p;
-  }
-
-  int __offset = 0;
-  const char* call_offset(uchar *out_current_code_pos, void *__virt_f) { 
-    auto virt_f = (uchar*)__virt_f;
-    ssize_t out_start_distance = out_current_code_pos - out_code_start;
-    ssize_t virt_dist_from_code_start = virt_f - virtual_code_start;
-    __offset = virt_dist_from_code_start - out_start_distance - 5;
-    cout << "__virt_f: " << __virt_f << endl;
-    //cout << "call_offset: " << __offset << " virt: " << virt_dist_from_code_start << " out: " << out_start_distance << endl;
-    return (const char*)&__offset;
   }
 
   void jmp(void *f) {
@@ -221,7 +247,6 @@ namespace symbiosis {
   }
 
   bool __am_i_pic() { 
-    printf("foo\n");
     uchar *p = (uchar *)__am_i_pic;
     int i = 0;
     uchar c = 0;
