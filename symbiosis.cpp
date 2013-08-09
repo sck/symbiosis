@@ -11,14 +11,23 @@ using namespace std;
 
 namespace symbiosis {
 
+  void dump(uchar* start, size_t s) {
+    for (size_t i = 0; i < s; i++) {
+      printf("%02x ", start[i]);
+    }
+  }
+
   bool intel = false;
   bool arm = false;
   bool am_i_pic = false;
 
   void figure_out_cpu_architecture() {
     uchar *p = (uchar *)figure_out_cpu_architecture;
-    if (p[3] == 0xe9 || p[3] == 0xe5) { cout << "ARM" << endl; 
-        arm = true; return }
+    cout << "CPU id: "; dump(p, 4);
+    if (p[0] == 0x55 && p[1] == 0x48) { cout << "Intel" << endl; 
+        intel = true; return; }
+    if (p[3] == 0xe9 || p[3] == 0xe5) { cout << "ARM" << endl; 
+        arm = true; return; }
     cout << "Unknown CPU id: "; dump(p, 4);
   }
 
@@ -147,13 +156,6 @@ namespace symbiosis {
     chmod("a.out", 0777);
   }
   
-  void dump(uchar* start, size_t s) {
-    for (size_t i = 0; i < s; i++) {
-      printf("%02x ", start[i]);
-    }
-    //printf("\n");
-  }
-
   int __offset = 0;
   const char* call_offset(uchar *out_current_code_pos, void *__virt_f) { 
     auto virt_f = (uchar*)__virt_f;
@@ -202,8 +204,6 @@ namespace symbiosis {
     }
     dump(s, l);
   }
-
-  bool intel() { return true; }
 
   id add_parameter(id p) {
     if (parameter_count >= parameters_max) {
