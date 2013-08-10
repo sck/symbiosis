@@ -32,8 +32,18 @@ namespace symbiosis {
   //#define R1(b) R2(b) S R2(b) S R2(b) S R2(b)
   #define R1(b) R7(b) S R7(b)
   #define RESERVE(b) R1(b)
+
+  extern bool pic_mode;
+
+#ifdef __PIC__
+#define INIT_PIC_MODE pic_mode = true
+#else
+#define INIT_PIC_MODE pic_mode = false
+#endif
+
   #define SYMBIOSIS_MAIN(b) int main(int argc, char **argv) { \
     DEF(start, { CODE_START; }); \
+    INIT_PIC_MODE; \
     try { \
       symbiosis::init(argv[0], C(start), C(end)); \
       b; \
@@ -45,17 +55,6 @@ namespace symbiosis {
     DEF(reserved_code, { RESERVE({ size_t i = 0x20; }); }); \
     DEF(end, { CODE_END; }); \
   }
-
-  extern uchar *virtual_code_start;
-  extern uchar *virtual_code_end;
-  extern uchar *out_code_start;
-  extern size_t code_max;
-  extern uchar *out_c;
-  extern uchar *out_c0;
-  
-  extern uchar *out_strings_start;
-  extern uchar *out_strings_end;
-  extern uchar *out_s;
 
   constexpr short int T_INT = 1;
   constexpr short int T_UINT = 2;

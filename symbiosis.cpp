@@ -29,11 +29,7 @@ namespace symbiosis {
   bool arm = true;
 #endif
 
-#ifdef __PIC__
-  bool pic_mode = true;
-#else
-  bool pic_mode = false; 
-#endif
+  bool pic_mode;
 
 
   //bool identify_cpu_and_pic_mode() {
