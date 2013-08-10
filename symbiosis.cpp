@@ -58,8 +58,8 @@ namespace symbiosis {
       if (c3 == A_LDR_e5) { ldr_count++; }
       p += 4;
       i += 4;
-    } while (i < 50);
-    if (ldr_count == 4) { arm = true; pic_mode = true; return true; } 
+    } while (i < 100);
+    if (ldr_count >= 4) { arm = true; pic_mode = true; return true; } 
     if (ldr_count > 1) { arm = true; return true; } 
 
     cout << "Unknown CPU id: "; dump(start, 20);
@@ -237,7 +237,6 @@ namespace symbiosis {
       fprintf(stderr, "Too many parameters!\n");
       return p;
     }
-    //cout << "parameter_count: " << parameter_count << " "; p.describe();
     if (p.is_charp()) {
       if (!pic_mode) {
         emit(register_parameters_intel_32[parameter_count]);
@@ -248,15 +247,11 @@ namespace symbiosis {
         emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
       }
     } else if (p.is_integer()) {
-      //cout << "is_integer" << endl;
       if (intel) {
-        //cout << "intel" << endl;
         if (p.is_32()) {
-          //cout << "is_32" << endl;
           emit(register_parameters_intel_32[parameter_count]);
           emit(p.i32(), 4);
         } else if (p.is_64()) {
-          //cout << "is_64" << endl;
           emit(register_parameters_intel_64[parameter_count]);
           emit(p.i64(), 8);
         }
@@ -284,12 +279,6 @@ namespace symbiosis {
   void __vararg_call(void *f) {
     emit(I_XOR_30); emit(0xc0); // xor    al,al
     call(f);
-  }
-
-  size_t __p = 0;
-
-  void f(const char *s, int i) {
-    __p += (size_t)s + i;
   }
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
