@@ -30,6 +30,7 @@ namespace symbiosis {
     int i = 0; p = start;
     do {
       c0 = *p; c1 = *(p+1); c2 = *(p+2);
+      // 4c 8b 3d aa 38 20 00    mov    r15,QWORD PTR [rip+0x2038aa] 
       if ((c0 >= I_REX_W_48 && c0 <= I_REX_WRXB_4f) &&
           (c1 == I_LEA_8d || c1 == I_MOV_r64_r64_8b) &&
           ((c2 & I_RM_BITS_07) == I_BP_RM_RIP_DISP32_05)) {
@@ -40,6 +41,8 @@ namespace symbiosis {
     i = 0; p = start;
     do {
       c0 = *p; c1 = *(p+1); c2 = *(p+2);
+      // 8a 88 9f 1a 40 00       mov    cl,BYTE PTR [rax+0x401a9f] 
+      // 8a 05 f9 ff ff ff       mov    al,BYTE PTR [rip-5]
       if (c0 == I_MOV_r8_rm8_8a && 
           (c1 >= I_MOD_SDWORD_RAX_SDWORD_AL_80 && 
           c1 <= I_MOD_SDWORD_RDI_SDWORD_BH_bf)) {
@@ -47,6 +50,18 @@ namespace symbiosis {
       }
       p++;
     } while (++i < 20);
+    uchar c3; int ldr_count = 0;
+    i = 0; p = start;
+    do {
+      c0 = *p; c1 = *(p+1); c2 = *(p+2); c3 = *(p + 3); 
+      // e59f0028        ldr     r0, [pc, #40]
+      if (c3 == A_LDR_e5) { 
+        if (ldr_count > 0) { arm = true; return true; }
+        ldr_count++; 
+      }
+      p += 4;
+      i += 4;
+    } while (i < 50);
 
     //if (p[0] == I_REX_B_41 || (p[0] == I_PUSH_BP_55 && 
     //    p[1] == I_REX_W_48)) { cout << "Intel" << endl; 
