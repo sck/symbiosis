@@ -26,5 +26,5 @@ SYMBIOSIS_MAIN({
   add_parameter(id_new("Hello: "))(123)(456); call(h2);
   add_parameter(id_new("Hello")); call(h3);
   //add_parameter(id_new("Hello: %d, %d\n"))(123)(456); vararg_call(printf);
-  //add_parameter(id_new("Hahah\n")); vararg_call(printf);
+  add_parameter(id_new("Hahah\n")); vararg_call(printf);
 });

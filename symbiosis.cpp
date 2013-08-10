@@ -21,27 +21,47 @@ namespace symbiosis {
 
   bool intel = false;
   bool arm = false;
-  bool am_i_pic = false;
+  bool pic_mode = false;
 
   bool figure_out_cpu_architecture() {
-    uchar *p = (uchar *)figure_out_cpu_architecture;
-    if (p[0] == I_PUSH_BP_55 && p[1] == I_MOV_48) { cout << "Intel" << endl; 
-        intel = true; return true; }
-    if (p[3] == A_PUSH_e9 || p[3] == A_LDR_e5) { cout << "ARM" << endl; 
-        arm = true; return true; }
-    cout << "Unknown CPU id: "; dump(p, 4);
+    uchar *start = (uchar *)figure_out_cpu_architecture;
+    uchar *p = start;
+    bool found = false;
+    int i = 0;
+    uchar c0,c1,c2;
+    do {
+      c0 = *p; c1 = *(p+1); c2 = *(p+2);
+      if ((c0 >= I_REX_W_48 && c0 <= I_REX_WRXB_4f) &&
+          (c1 == I_LEA_8d || c1 == I_MOV_r64_r64_8b) &&
+          ((c2 & I_MOD_RM_BITS_07) == I_BP_MODRM_RIP_DISP32_05)) {
+        intel = true; pic_mode = true; return true;
+      }
+      if (c0 == I_MOV_r8_rm8_8a && 
+          (c1 & I_MOD_RM_BITS_07) == I_BP_MODRM_RIP_DISP32_05) {
+        intel = true; pic_mode = false; return true;
+      }
+      p++;
+    } while (!found && ++i < 20);
+
+    //if (p[0] == I_REX_B_41 || (p[0] == I_PUSH_BP_55 && 
+    //    p[1] == I_REX_W_48)) { cout << "Intel" << endl; 
+    //    intel = true; return true; }
+    //if (p[3] == A_PUSH_e9 || p[3] == A_LDR_e5) { cout << "ARM" << endl; 
+    //    arm = true; return true; }
+    cout << "Unknown CPU id: "; dump(start, 20);
+    return false;
   }
 
-  bool __am_i_pic() { 
-    uchar *p = (uchar *)__am_i_pic;
-    printf("am i pic?\n");
-    int i = 0;
-    uchar c = 0;
-    do {
-      c = p[i++];
-    } while (i < 10 && c != I_MOV_48 && c != I_LEA_bf);
-    return c == 0x48;
-  }
+  //bool __am_i_pic() { 
+  //  uchar *p = (uchar *)__am_i_pic;
+  //  printf("am i pic?\n");
+  //  int i = 0;
+  //  uchar c = 0;
+  //  do {
+  //    c = p[i++];
+  //  } while (i < 10 && c != I_REX_W_48 && c != I_LEA_bf);
+  //  return c == I_REX_W_48;
+  //}
 
 
   class exception : public std::exception {
@@ -216,7 +236,7 @@ namespace symbiosis {
     }
     //cout << "parameter_count: " << parameter_count << " "; p.describe();
     if (p.is_charp()) {
-      if (!am_i_pic) {
+      if (!pic_mode) {
         emit(register_parameters_intel_32[parameter_count]);
         emit(p.i32(), 4);
       } else {
@@ -271,8 +291,10 @@ namespace symbiosis {
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
     if (!figure_out_cpu_architecture()) exit(1);
-    am_i_pic = __am_i_pic();
-    printf("am_i_pic: %d\n", am_i_pic);
+    cout << "intel: " << intel << ", arm: " << arm << 
+        ", pic_mode: " << pic_mode << endl;
+    ///am_i_pic = __am_i_pic();
+    //printf("am_i_pic: %d\n", am_i_pic);
     command_file = c;
     virtual_code_start = start;
     virtual_code_end = end;
