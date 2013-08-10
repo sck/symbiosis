@@ -16,9 +16,13 @@ namespace symbiosis {
   constexpr uchar I_CALL_e8 = 0xe8;
   constexpr uchar I_XOR_30 = 0x30;
 
-  // Intel: ModRM
-  constexpr uchar I_MOD_RM_BITS_07 = 0x07;
-  constexpr uchar I_BP_MODRM_RIP_DISP32_05 = 0x05;
+  // Intel: Mod/RM
+  constexpr uchar I_RM_BITS_07 = 0x07;
+  constexpr uchar I_MOD_BITS_c0 = 128 + 64;
+  constexpr uchar I_MOD_SDWORD_RAX_SDWORD_AL_80 = 0x80;
+  constexpr uchar I_MOD_SDWORD_RDI_SDWORD_BH_bf = 0xBF;
+  constexpr uchar I_BP_MOD_00 = 0x00;
+  constexpr uchar I_BP_RM_RIP_DISP32_05 = 0x05;
 
   // ARM
   constexpr uchar A_LDR_e5 = 0xe5;

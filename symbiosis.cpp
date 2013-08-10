@@ -32,15 +32,17 @@ namespace symbiosis {
       c0 = *p; c1 = *(p+1); c2 = *(p+2);
       if ((c0 >= I_REX_W_48 && c0 <= I_REX_WRXB_4f) &&
           (c1 == I_LEA_8d || c1 == I_MOV_r64_r64_8b) &&
-          ((c2 & I_MOD_RM_BITS_07) == I_BP_MODRM_RIP_DISP32_05)) {
+          ((c2 & I_RM_BITS_07) == I_BP_RM_RIP_DISP32_05)) {
         intel = true; pic_mode = true; return true;
       }
       p++;
     } while (++i < 20);
     i = 0; p = start;
     do {
+      c0 = *p; c1 = *(p+1); c2 = *(p+2);
       if (c0 == I_MOV_r8_rm8_8a && 
-          (c1 & I_MOD_RM_BITS_07) == I_BP_MODRM_RIP_DISP32_05) {
+          (c1 >= I_MOD_SDWORD_RAX_SDWORD_AL_80 && 
+          c1 <= I_MOD_SDWORD_RDI_SDWORD_BH_bf)) {
         intel = true; pic_mode = false; return true;
       }
       p++;
