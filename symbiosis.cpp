@@ -26,9 +26,8 @@ namespace symbiosis {
   bool figure_out_cpu_architecture() {
     uchar *start = (uchar *)figure_out_cpu_architecture;
     uchar *p = start;
-    bool found = false;
-    int i = 0;
     uchar c0,c1,c2;
+    int i = 0; p = start;
     do {
       c0 = *p; c1 = *(p+1); c2 = *(p+2);
       if ((c0 >= I_REX_W_48 && c0 <= I_REX_WRXB_4f) &&
@@ -36,12 +35,16 @@ namespace symbiosis {
           ((c2 & I_MOD_RM_BITS_07) == I_BP_MODRM_RIP_DISP32_05)) {
         intel = true; pic_mode = true; return true;
       }
+      p++;
+    } while (++i < 20);
+    i = 0; p = start;
+    do {
       if (c0 == I_MOV_r8_rm8_8a && 
           (c1 & I_MOD_RM_BITS_07) == I_BP_MODRM_RIP_DISP32_05) {
         intel = true; pic_mode = false; return true;
       }
       p++;
-    } while (!found && ++i < 20);
+    } while (++i < 20);
 
     //if (p[0] == I_REX_B_41 || (p[0] == I_PUSH_BP_55 && 
     //    p[1] == I_REX_W_48)) { cout << "Intel" << endl; 
