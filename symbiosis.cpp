@@ -23,8 +23,8 @@ namespace symbiosis {
   bool arm = false;
   bool pic_mode = false;
 
-  bool figure_out_cpu_architecture() {
-    uchar *start = (uchar *)figure_out_cpu_architecture;
+  bool identify_cpu_and_pic_mode() {
+    uchar *start = (uchar *)identify_cpu_and_pic_mode;
     uchar *p = start;
     uchar c0,c1,c2;
     int i = 0; p = start;
@@ -55,33 +55,16 @@ namespace symbiosis {
     do {
       c0 = *p; c1 = *(p+1); c2 = *(p+2); c3 = *(p + 3); 
       // e59f0028        ldr     r0, [pc, #40]
-      if (c3 == A_LDR_e5) { 
-        if (ldr_count > 0) { arm = true; return true; }
-        ldr_count++; 
-      }
+      if (c3 == A_LDR_e5) { ldr_count++; }
       p += 4;
       i += 4;
     } while (i < 50);
+    if (ldr_count == 4) { arm = true; pic_mode = true; return true; } 
+    if (ldr_count > 1) { arm = true; return true; } 
 
-    //if (p[0] == I_REX_B_41 || (p[0] == I_PUSH_BP_55 && 
-    //    p[1] == I_REX_W_48)) { cout << "Intel" << endl; 
-    //    intel = true; return true; }
-    //if (p[3] == A_PUSH_e9 || p[3] == A_LDR_e5) { cout << "ARM" << endl; 
-    //    arm = true; return true; }
     cout << "Unknown CPU id: "; dump(start, 20);
     return false;
   }
-
-  //bool __am_i_pic() { 
-  //  uchar *p = (uchar *)__am_i_pic;
-  //  printf("am i pic?\n");
-  //  int i = 0;
-  //  uchar c = 0;
-  //  do {
-  //    c = p[i++];
-  //  } while (i < 10 && c != I_REX_W_48 && c != I_LEA_bf);
-  //  return c == I_REX_W_48;
-  //}
 
 
   class exception : public std::exception {
@@ -310,11 +293,9 @@ namespace symbiosis {
   }
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
-    if (!figure_out_cpu_architecture()) exit(1);
+    if (!identify_cpu_and_pic_mode()) exit(1);
     cout << "intel: " << intel << ", arm: " << arm << 
         ", pic_mode: " << pic_mode << endl;
-    ///am_i_pic = __am_i_pic();
-    //printf("am_i_pic: %d\n", am_i_pic);
     command_file = c;
     virtual_code_start = start;
     virtual_code_end = end;
