@@ -31,51 +31,6 @@ namespace symbiosis {
 
   bool pic_mode;
 
-
-  //bool identify_cpu_and_pic_mode() {
-  //  uchar *start = (uchar *)identify_cpu_and_pic_mode;
-  //  uchar *p = start;
-  //  uchar c0,c1,c2;
-  //  int i = 0; p = start;
-  //  do {
-  //    c0 = *p; c1 = *(p+1); c2 = *(p+2);
-  //    // 4c 8b 3d aa 38 20 00    mov    r15,QWORD PTR [rip+0x2038aa] 
-  //    if ((c0 >= I_REX_W_48 && c0 <= I_REX_WRXB_4f) &&
-  //        (c1 == I_LEA_8d || c1 == I_MOV_r64_r64_8b) &&
-  //        ((c2 & I_RM_BITS_07) == I_BP_RM_RIP_DISP32_05)) {
-  //      intel = true; pic_mode = true; return true;
-  //    }
-  //    p++;
-  //  } while (++i < 20);
-  //  i = 0; p = start;
-  //  do {
-  //    c0 = *p; c1 = *(p+1); c2 = *(p+2);
-  //    // 8a 88 9f 1a 40 00       mov    cl,BYTE PTR [rax+0x401a9f] 
-  //    // 8a 05 f9 ff ff ff       mov    al,BYTE PTR [rip-5]
-  //    if (c0 == I_MOV_r8_rm8_8a && 
-  //        (c1 >= I_MOD_SDWORD_RAX_SDWORD_AL_80 && 
-  //        c1 <= I_MOD_SDWORD_RDI_SDWORD_BH_bf)) {
-  //      intel = true; pic_mode = false; return true;
-  //    }
-  //    p++;
-  //  } while (++i < 20);
-  //  uchar c3; int ldr_count = 0;
-  //  i = 0; p = start;
-  //  do {
-  //    c0 = *p; c1 = *(p+1); c2 = *(p+2); c3 = *(p + 3); 
-  //    // e59f0028        ldr     r0, [pc, #40]
-  //    if (c3 == A_LDR_e5) { ldr_count++; }
-  //    p += 4;
-  //    i += 4;
-  //  } while (i < 100);
-  //  if (ldr_count >= 4) { arm = true; pic_mode = true; return true; } 
-  //  if (ldr_count > 1) { arm = true; return true; } 
-
-  //  cout << "Unknown CPU id: "; dump(start, 20);
-  //  return false;
-  //}
-
-
   class exception : public std::exception {
     const char *what_;
   public:
@@ -299,14 +254,12 @@ namespace symbiosis {
     virtual_code_end = end;
     find_space(start, ss, end, es, &out_code_start,  
         &out_code_end); 
-    //printf("code: %zu\n", out_code_end - out_code_start); 
     virtual_strings_start = (uchar *)STRINGS_START;
     virtual_strings_end = (uchar *)STRINGS_END;
     out_c = out_code_start; 
     find_space(virtual_strings_start, strlen(STRINGS_START), 
         virtual_strings_end, strlen(STRINGS_END), 
             &out_strings_start, &out_strings_end); 
-    //printf("strings: %zu\n", out_strings_end - out_strings_start); 
     out_s = out_strings_start; 
   }
 
