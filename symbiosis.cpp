@@ -196,22 +196,30 @@ namespace symbiosis {
 
   void emit(uchar uc) { emit((const char *)&uc, sizeof(uc)); }
 
-  id add_parameter(id p) {
-    if (parameter_count >= parameters_max) {
-      fprintf(stderr, "Too many parameters!\n");
-      return p;
-    }
-    if (p.is_charp()) {
-      if (!pic_mode) {
-        emit(register_parameters_intel_32[parameter_count]);
-        emit(p.i32(), 4);
-      } else {
-        uchar *out_current_code_pos = out_c;
-        emit(register_rip_relative_parameters_intel_64[parameter_count]);
-        emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
-      }
-    } else if (p.is_integer()) {
-      if (intel) {
+  class Backend {
+  public:
+    Backend() { }
+    virtual ~Backend() { }
+    virtual void add_parameter(id p) = 0;
+    virtual void jmp(void *f) = 0;
+    virtual void __call(void *f) = 0;
+    virtual void __vararg_call(void *f) = 0;
+  };
+
+  class Intel : public Backend {
+  public:
+    Intel() : Backend() { }
+    virtual void add_parameter(id p) {
+      if (p.is_charp()) {
+        if (!pic_mode) {
+          emit(register_parameters_intel_32[parameter_count]);
+          emit(p.i32(), 4);
+        } else {
+          uchar *out_current_code_pos = out_c;
+          emit(register_rip_relative_parameters_intel_64[parameter_count]);
+          emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
+        }
+      } else if (p.is_integer()) {
         if (p.is_32()) {
           emit(register_parameters_intel_32[parameter_count]);
           emit(p.i32(), 4);
@@ -219,36 +227,82 @@ namespace symbiosis {
           emit(register_parameters_intel_64[parameter_count]);
           emit(p.i64(), 8);
         }
-      } else if (arm) {
-        emit(register_parameters_intel_32[parameter_count]);
       }
     }
+    virtual void jmp(void *f)  {
+      uchar *out_current_code_pos = out_c;
+      emit(I_JMP_e9); 
+      emit(call_offset(out_current_code_pos, f), 4);
+    }
+    virtual void __call(void *f) {
+      uchar *out_current_code_pos = out_c;
+      emit(I_CALL_e8); 
+      emit(call_offset(out_current_code_pos, f), 4);
+    }
+    virtual void __vararg_call(void *f) {
+      emit(I_XOR_30); emit(0xc0); // xor    al,al
+      __call(f);
+    }
+  };
+
+  class Arm : public Backend {
+  public:
+    Arm() : Backend() { }
+    virtual void add_parameter(id p) {
+      throw exception("No arm support yet!");
+      //if (p.is_charp()) {
+      //  if (!pic_mode) {
+      //    emit(register_parameters_intel_32[parameter_count]);
+      //    emit(p.i32(), 4);
+      //  } else {
+      //    uchar *out_current_code_pos = out_c;
+      //    emit(register_rip_relative_parameters_intel_64[parameter_count]);
+      //    emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
+      //  }
+      //} else if (p.is_integer()) {
+      //  if (p.is_32()) {
+      //    emit(register_parameters_intel_32[parameter_count]);
+      //    emit(p.i32(), 4);
+      //  } else if (p.is_64()) {
+      //    emit(register_parameters_intel_64[parameter_count]);
+      //    emit(p.i64(), 8);
+      //  }
+      //}
+    }
+    virtual void jmp(void *f)  { 
+      throw exception("No arm support yet!");
+    }
+    virtual void __call(void *f) {
+      throw exception("No arm support yet!");
+    }
+    virtual void __vararg_call(void *f) {
+      throw exception("No arm support yet!");
+    }
+  };
+
+  Backend* backend;
+
+
+  id add_parameter(id p) {
+    if (parameter_count >= parameters_max) {
+      fprintf(stderr, "Too many parameters!\n");
+      return p;
+    }
+    backend->add_parameter(p);
     ++parameter_count;
     return p;
   }
 
-  void jmp(void *f) {
-    uchar *out_current_code_pos = out_c;
-    emit(I_JMP_e9); 
-    emit(call_offset(out_current_code_pos, f), 4);
-  }
-
-  void __call(void *f) {
-    uchar *out_current_code_pos = out_c;
-    emit(I_CALL_e8); 
-    emit(call_offset(out_current_code_pos, f), 4);
-    parameter_count = 0;
-  }
-
-  void __vararg_call(void *f) {
-    emit(I_XOR_30); emit(0xc0); // xor    al,al
-    call(f);
-  }
+  void jmp(void *f) { backend->jmp(f); }
+  void __call(void *f) { backend->__call(f); parameter_count = 0; }
+  void __vararg_call(void *f) { backend->__vararg_call(f); }
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
     //if (!identify_cpu_and_pic_mode()) exit(1);
     cout << "intel: " << intel << ", arm: " << arm << 
         ", pic_mode: " << pic_mode << endl;
+    if (intel) { backend = new Intel(); }
+    if (arm) { backend = new Arm(); }
     command_file = c;
     virtual_code_start = start;
     virtual_code_end = end;
