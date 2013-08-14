@@ -252,15 +252,15 @@ namespace symbiosis {
       "\xe5\x9f\x00", /*r0*/ "\xe5\x9f\x10", /*r1*/ "\xe5\x9f\x20" /*r2*/ };
 
   class Arm : public Backend {
-    int ofs = 4;
+    int ofs = 5;
   public:
     Arm() : Backend() { }
     void emit_byte(uchar c) {
-      if (ofs == 4) {
-        if (out_c > out_code_start) { printf("<<"); dump(out_c - 3, 4); printf(">>"); }
+      if (ofs == 5) {
+        if (out_c > out_code_start) { printf("<<"); dump(out_c - 4, 4); printf(">>"); }
         if (out_c + 4 > out_code_end) throw exception("Code: Out of memory"); 
         out_c += 4;
-        ofs = 0;
+        ofs = 1;
       }
       printf(".%02x", c);
       *(out_c - ofs) = c;
@@ -346,6 +346,7 @@ namespace symbiosis {
         virtual_strings_end, strlen(STRINGS_END), 
             &out_strings_start, &out_strings_end); 
     out_s = out_strings_start; 
+    backend->emit("\x00\x00\x00\x00", 4);
   }
 
   void finish() {
