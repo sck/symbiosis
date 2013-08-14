@@ -190,7 +190,7 @@ namespace symbiosis {
       size_t l = _l > 0 ? _l : strlen(_s);
       uchar *s = (uchar *)_s; uchar *e = s + l;
       for (uchar * b  = s; b < e; b++)  emit_byte(*b);
-      dump(s, l);
+      //dump(out_start, l);
     }
   };
 
@@ -252,23 +252,25 @@ namespace symbiosis {
       "\xe5\x9f\x00", /*r0*/ "\xe5\x9f\x10", /*r1*/ "\xe5\x9f\x20" /*r2*/ };
 
   class Arm : public Backend {
-    int ofs = 3;
+    int ofs = 4;
   public:
     Arm() : Backend() { }
     void emit_byte(uchar c) {
-      if (ofs == 3) {
+      if (ofs == 4) {
+        if (out_c > out_code_start) { dump(out_c - 4, 4); printf(" :: "); }
         if (out_c + 4 > out_code_end) throw exception("Code: Out of memory"); 
         out_c += 4;
         ofs = 0;
       }
       *(out_c - ofs) = c;
+      ofs++;
     }
     virtual void add_parameter(id p) {
       if (p.is_charp()) {
         if (!pic_mode) {
           emit(register_parameters_arm_32[parameter_count]);
           uchar *ldr_p = out_c - 1;
-          emit("\x12\x34");
+          emit("\x12");
           callback([=]() { 
               cout << "Would set string ref for : " << 
               parameter_count << endl; });
@@ -282,7 +284,7 @@ namespace symbiosis {
         if (p.is_32()) {
           emit(register_parameters_arm_32[parameter_count]);
           uchar *ldr_p = out_c - 1;
-          emit("\x12\x34");
+          emit("\x12");
           callback([=]() { 
               cout << "Would set imm for : " << parameter_count << endl; });
         } else if (p.is_64()) {
