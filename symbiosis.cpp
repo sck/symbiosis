@@ -172,18 +172,6 @@ namespace symbiosis {
 
   constexpr int parameters_max = 3;
 
-  void emit(const char* _s, size_t _l = 0) { 
-    size_t l = _l > 0 ? _l : strlen(_s);
-    uchar *s = (uchar *)_s; uchar *e = s + l;
-    if (out_c + l > out_code_end) throw exception("Code: Out of memory"); 
-    for (uchar * b  = s; b < e; b++, out_c++) { 
-      *out_c = *b; 
-    }
-    dump(s, l);
-  }
-
-  void emit(uchar uc) { emit((const char *)&uc, sizeof(uc)); }
-
   class Backend {
     vector<function<void()> > callbacks;
   public:
@@ -197,6 +185,8 @@ namespace symbiosis {
     virtual void jmp(void *f) = 0;
     virtual void __call(void *f) = 0;
     virtual void __vararg_call(void *f) = 0;
+    virtual void void emit(const char* _s, size_t _l = 0) = 0;
+    void emit(uchar uc) { emit((const char *)&uc, sizeof(uc)); }
   };
 
   const char *register_parameters_intel_32[] = {
@@ -212,6 +202,16 @@ namespace symbiosis {
   class Intel : public Backend {
   public:
     Intel() : Backend() { }
+    virtual void emit(const char* _s, size_t _l = 0) { 
+      size_t l = _l > 0 ? _l : strlen(_s);
+      uchar *s = (uchar *)_s; uchar *e = s + l;
+      if (out_c + l > out_code_end) throw exception("Code: Out of memory"); 
+      for (uchar * b  = s; b < e; b++, out_c++) { 
+        *out_c = *b; 
+      }
+      dump(s, l);
+    }
+
     virtual void add_parameter(id p) {
       if (p.is_charp()) {
         if (!pic_mode) {
@@ -254,34 +254,48 @@ namespace symbiosis {
   class Arm : public Backend {
   public:
     Arm() : Backend() { }
+    virtual void emit(const char* _s, size_t _l = 0) { 
+      cout << "Would emit" << endl;
+    }
     virtual void add_parameter(id p) {
-      //if (p.is_charp()) {
-      //  if (!pic_mode) {
-      //    emit(register_parameters_intel_32[parameter_count]);
-      //    emit(p.i32(), 4);
-      //  } else {
-      //    uchar *out_current_code_pos = out_c;
-      //    emit(register_rip_relative_parameters_intel_64[parameter_count]);
-      //    emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
-      //  }
-      if (p.is_integer()) {
+      if (p.is_charp()) {
+        if (!pic_mode) {
+          emit(register_parameters_arm_32[parameter_count]);
+          uchar *ldr_p = out_c - 1;
+          emit("\x12\x34");
+          callback([=]() { 
+              cout << "Would set string ref for : " << 
+              parameter_count << endl; });
+        } else {
+          throw exception("pic mode not supported yet!");
+          //uchar *out_current_code_pos = out_c;
+          //emit(register_rip_relative_parameters_intel_64[parameter_count]);
+          //emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
+        }
+      } else if (p.is_integer()) {
         if (p.is_32()) {
           emit(register_parameters_arm_32[parameter_count]);
           uchar *ldr_p = out_c - 1;
-          emit("\x0");
-          callback([=]() { cout << "Would set: " << ldr_p << endl; });
+          emit("\x12\x34");
+          callback([=]() { 
+              cout << "Would set imm for : " << parameter_count << endl; });
         } else if (p.is_64()) {
           throw exception("64bit not supported yet!");
         }
       } else {
+        //cout << "No integer not supported yet" << endl;
         throw exception("No integer not supported yet");
       }
     }
     virtual void jmp(void *f)  { 
-      throw exception("No arm support yet!");
+      uchar *out_current_code_pos = out_c;
+      emit(A_B_08);
+      emit(call_offset(out_current_code_pos, f), 4);
     }
     virtual void __call(void *f) {
-      //throw exception("No arm support yet!");
+      uchar *out_current_code_pos = out_c;
+      emit(A_BL_eb);
+      emit(call_offset(out_current_code_pos, f), 4);
       perform_callbacks();
     }
     virtual void __vararg_call(void *f) {
