@@ -185,8 +185,13 @@ namespace symbiosis {
     virtual void jmp(void *f) = 0;
     virtual void __call(void *f) = 0;
     virtual void __vararg_call(void *f) = 0;
-    virtual void void emit(const char* _s, size_t _l = 0) = 0;
-    void emit(uchar uc) { emit((const char *)&uc, sizeof(uc)); }
+    virtual void emit_byte(uchar uc) = 0; 
+    virtual void emit(const char* _s, size_t _l = 0) { 
+      size_t l = _l > 0 ? _l : strlen(_s);
+      uchar *s = (uchar *)_s; uchar *e = s + l;
+      for (uchar * b  = s; b < e; b++)  emit_byte(*b);
+      dump(s, l);
+    }
   };
 
   const char *register_parameters_intel_32[] = {
@@ -202,16 +207,11 @@ namespace symbiosis {
   class Intel : public Backend {
   public:
     Intel() : Backend() { }
-    virtual void emit(const char* _s, size_t _l = 0) { 
-      size_t l = _l > 0 ? _l : strlen(_s);
-      uchar *s = (uchar *)_s; uchar *e = s + l;
-      if (out_c + l > out_code_end) throw exception("Code: Out of memory"); 
-      for (uchar * b  = s; b < e; b++, out_c++) { 
-        *out_c = *b; 
-      }
-      dump(s, l);
+    void emit_byte(uchar c) {
+      if (out_c + 1 > out_code_end) throw exception("Code: Out of memory"); 
+      *out_c = c;
+      out_c++;
     }
-
     virtual void add_parameter(id p) {
       if (p.is_charp()) {
         if (!pic_mode) {
@@ -234,16 +234,16 @@ namespace symbiosis {
     }
     virtual void jmp(void *f)  {
       uchar *out_current_code_pos = out_c;
-      emit(I_JMP_e9); 
+      emit_byte(I_JMP_e9); 
       emit(call_offset(out_current_code_pos, f), 4);
     }
     virtual void __call(void *f) {
       uchar *out_current_code_pos = out_c;
-      emit(I_CALL_e8); 
+      emit_byte(I_CALL_e8); 
       emit(call_offset(out_current_code_pos, f), 4);
     }
     virtual void __vararg_call(void *f) {
-      emit(I_XOR_30); emit(0xc0); // xor    al,al
+      emit_byte(I_XOR_30); emit_byte(0xc0); // xor    al,al
       __call(f);
     }
   };
@@ -252,10 +252,16 @@ namespace symbiosis {
       "\xe5\x9f\x00", /*r0*/ "\xe5\x9f\x10", /*r1*/ "\xe5\x9f\x20" /*r2*/ };
 
   class Arm : public Backend {
+    int ofs = 3;
   public:
     Arm() : Backend() { }
-    virtual void emit(const char* _s, size_t _l = 0) { 
-      cout << "Would emit" << endl;
+    void emit_byte(uchar c) {
+      if (ofs == 3) {
+        if (out_c + 4 > out_code_end) throw exception("Code: Out of memory"); 
+        out_c += 4;
+        ofs = 0;
+      }
+      *(out_c - ofs) = c;
     }
     virtual void add_parameter(id p) {
       if (p.is_charp()) {
@@ -289,12 +295,12 @@ namespace symbiosis {
     }
     virtual void jmp(void *f)  { 
       uchar *out_current_code_pos = out_c;
-      emit(A_B_08);
+      emit_byte(A_B_08);
       emit(call_offset(out_current_code_pos, f), 4);
     }
     virtual void __call(void *f) {
       uchar *out_current_code_pos = out_c;
-      emit(A_BL_eb);
+      emit_byte(A_BL_eb);
       emit(call_offset(out_current_code_pos, f), 4);
       perform_callbacks();
     }
@@ -320,7 +326,6 @@ namespace symbiosis {
   void __vararg_call(void *f) { backend->__vararg_call(f); }
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
-    //if (!identify_cpu_and_pic_mode()) exit(1);
     cout << "intel: " << intel << ", arm: " << arm << 
         ", pic_mode: " << pic_mode << endl;
     if (intel) { backend = new Intel(); }
