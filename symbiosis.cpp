@@ -257,18 +257,19 @@ namespace symbiosis {
     Arm() : Backend() { }
     void emit_byte(uchar c) {
       if (ofs == 4) {
-        if (out_c > out_code_start) { dump(out_c - 4, 4); printf(" :: "); }
+        if (out_c > out_code_start) { printf("<<"); dump(out_c - 3, 4); printf(">>"); }
         if (out_c + 4 > out_code_end) throw exception("Code: Out of memory"); 
         out_c += 4;
         ofs = 0;
       }
+      printf(".%02x", c);
       *(out_c - ofs) = c;
       ofs++;
     }
     virtual void add_parameter(id p) {
       if (p.is_charp()) {
         if (!pic_mode) {
-          emit(register_parameters_arm_32[parameter_count]);
+          emit(register_parameters_arm_32[parameter_count], 3);
           uchar *ldr_p = out_c - 1;
           emit("\x12");
           callback([=]() { 
@@ -282,7 +283,7 @@ namespace symbiosis {
         }
       } else if (p.is_integer()) {
         if (p.is_32()) {
-          emit(register_parameters_arm_32[parameter_count]);
+          emit(register_parameters_arm_32[parameter_count], 3);
           uchar *ldr_p = out_c - 1;
           emit("\x12");
           callback([=]() { 
@@ -328,6 +329,7 @@ namespace symbiosis {
   void __vararg_call(void *f) { backend->__vararg_call(f); }
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
+    arm = true; intel = false; pic_mode = false;
     cout << "intel: " << intel << ", arm: " << arm << 
         ", pic_mode: " << pic_mode << endl;
     if (intel) { backend = new Intel(); }
