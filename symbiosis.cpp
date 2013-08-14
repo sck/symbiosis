@@ -299,12 +299,12 @@ namespace symbiosis {
     virtual void jmp(void *f)  { 
       uchar *out_current_code_pos = out_c;
       emit_byte(A_B_08);
-      emit(call_offset(out_current_code_pos, f), 4);
+      emit(call_offset(out_current_code_pos, f), 3);
     }
     virtual void __call(void *f) {
       uchar *out_current_code_pos = out_c;
       emit_byte(A_BL_eb);
-      emit(call_offset(out_current_code_pos, f), 4);
+      emit(call_offset(out_current_code_pos, f), 3);
       perform_callbacks();
     }
     virtual void __vararg_call(void *f) {
