@@ -252,19 +252,22 @@ namespace symbiosis {
       "\xe5\x9f\x00", /*r0*/ "\xe5\x9f\x10", /*r1*/ "\xe5\x9f\x20" /*r2*/ };
 
   class Arm : public Backend {
-    int ofs = 5;
+    int ofs = 1;
   public:
-    Arm() : Backend() { }
+    Arm() : Backend() { alloc_next_32_bits(); }
+    void alloc_next_32_bits() {
+      if (out_c + 4 > out_code_end) throw exception("Code: Out of memory"); 
+      out_c += 4;
+      ofs = 1;
+    }
     void emit_byte(uchar c) {
-      if (ofs == 5) {
-        if (out_c > out_code_start) { printf("<<"); dump(out_c - 4, 4); printf(">>"); }
-        if (out_c + 4 > out_code_end) throw exception("Code: Out of memory"); 
-        out_c += 4;
-        ofs = 1;
-      }
       printf(".%02x", c);
       *(out_c - ofs) = c;
       ofs++;
+      if (ofs == 5) {
+        if (out_c > out_code_start) { printf("<<"); dump(out_c - 4, 4); printf(">>"); }
+        alloc_next_32_bits();
+      }
     }
     virtual void add_parameter(id p) {
       if (p.is_charp()) {
@@ -332,8 +335,6 @@ namespace symbiosis {
     arm = true; intel = false; pic_mode = false;
     cout << "intel: " << intel << ", arm: " << arm << 
         ", pic_mode: " << pic_mode << endl;
-    if (intel) { backend = new Intel(); }
-    if (arm) { backend = new Arm(); }
     command_file = c;
     virtual_code_start = start;
     virtual_code_end = end;
@@ -346,7 +347,8 @@ namespace symbiosis {
         virtual_strings_end, strlen(STRINGS_END), 
             &out_strings_start, &out_strings_end); 
     out_s = out_strings_start; 
-    backend->emit("\x00\x00\x00\x00", 4);
+    if (intel) { backend = new Intel(); }
+    if (arm) { backend = new Arm(); }
   }
 
   void finish() {
