@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include <vector>
+#include <functional>
 
 #include "cpu_defines.hpp"
 
@@ -169,19 +170,6 @@ namespace symbiosis {
   }
 
 
-  int parameter_count = 0;
-  const char *register_parameters_intel_32[] = {
-      "\xbf", /*edi*/ "\xbe", /*esi*/ "\xba" /*edx*/ };
-  
-  const char *register_rip_relative_parameters_intel_64[] = {
-    "\x48\x8d\x3d", /* rdi */ "\x48\x8d\x35", /* rsi */ 
-    "\x48\x8d\x15" /* rdx */ };
-
-  const char *register_parameters_arm_32[] = {
-      "\xe5\x9f\x00", /*r0*/ "\xe5\x9f\x10", /*r1*/ "\xe5\x9f\x20" /*r2*/ };
-  const char *register_parameters_intel_64[] = {
-      "\x48\xbf" /*rdi*/, "\x48\xbe" ,/*rsi*/ "\x48\xba" /*rdx*/ };
-
   constexpr int parameters_max = 3;
 
   void emit(const char* _s, size_t _l = 0) { 
@@ -197,14 +185,29 @@ namespace symbiosis {
   void emit(uchar uc) { emit((const char *)&uc, sizeof(uc)); }
 
   class Backend {
+    vector<function<void()> > callbacks;
   public:
+    int parameter_count = 0; 
     Backend() { }
     virtual ~Backend() { }
+    void callback(function<void()> f) { callbacks.push_back(f); }
+    void perform_callbacks() { 
+        for (size_t i = 0; i < callbacks.size(); ++i) { callbacks[i]();  }}
     virtual void add_parameter(id p) = 0;
     virtual void jmp(void *f) = 0;
     virtual void __call(void *f) = 0;
     virtual void __vararg_call(void *f) = 0;
   };
+
+  const char *register_parameters_intel_32[] = {
+      "\xbf", /*edi*/ "\xbe", /*esi*/ "\xba" /*edx*/ };
+  
+  const char *register_rip_relative_parameters_intel_64[] = {
+    "\x48\x8d\x3d", /* rdi */ "\x48\x8d\x35", /* rsi */ 
+    "\x48\x8d\x15" /* rdx */ };
+
+  const char *register_parameters_intel_64[] = {
+      "\x48\xbf" /*rdi*/, "\x48\xbe" ,/*rsi*/ "\x48\xba" /*rdx*/ };
 
   class Intel : public Backend {
   public:
@@ -245,11 +248,13 @@ namespace symbiosis {
     }
   };
 
+  const char *register_parameters_arm_32[] = {
+      "\xe5\x9f\x00", /*r0*/ "\xe5\x9f\x10", /*r1*/ "\xe5\x9f\x20" /*r2*/ };
+
   class Arm : public Backend {
   public:
     Arm() : Backend() { }
     virtual void add_parameter(id p) {
-      throw exception("No arm support yet!");
       //if (p.is_charp()) {
       //  if (!pic_mode) {
       //    emit(register_parameters_intel_32[parameter_count]);
@@ -259,21 +264,25 @@ namespace symbiosis {
       //    emit(register_rip_relative_parameters_intel_64[parameter_count]);
       //    emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
       //  }
-      //} else if (p.is_integer()) {
-      //  if (p.is_32()) {
-      //    emit(register_parameters_intel_32[parameter_count]);
-      //    emit(p.i32(), 4);
-      //  } else if (p.is_64()) {
-      //    emit(register_parameters_intel_64[parameter_count]);
-      //    emit(p.i64(), 8);
-      //  }
-      //}
+      if (p.is_integer()) {
+        if (p.is_32()) {
+          emit(register_parameters_arm_32[parameter_count]);
+          uchar *ldr_p = out_c - 1;
+          emit("\x0");
+          callback([=]() { cout << "Would set: " << ldr_p << endl; });
+        } else if (p.is_64()) {
+          throw exception("64bit not supported yet!");
+        }
+      } else {
+        throw exception("No integer not supported yet");
+      }
     }
     virtual void jmp(void *f)  { 
       throw exception("No arm support yet!");
     }
     virtual void __call(void *f) {
-      throw exception("No arm support yet!");
+      //throw exception("No arm support yet!");
+      perform_callbacks();
     }
     virtual void __vararg_call(void *f) {
       throw exception("No arm support yet!");
@@ -282,19 +291,18 @@ namespace symbiosis {
 
   Backend* backend;
 
-
   id add_parameter(id p) {
-    if (parameter_count >= parameters_max) {
+    if (backend->parameter_count >= parameters_max) {
       fprintf(stderr, "Too many parameters!\n");
       return p;
     }
     backend->add_parameter(p);
-    ++parameter_count;
+    ++backend->parameter_count;
     return p;
   }
 
   void jmp(void *f) { backend->jmp(f); }
-  void __call(void *f) { backend->__call(f); parameter_count = 0; }
+  void __call(void *f) { backend->__call(f); backend->parameter_count = 0; }
   void __vararg_call(void *f) { backend->__vararg_call(f); }
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
