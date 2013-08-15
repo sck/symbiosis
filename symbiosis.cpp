@@ -278,12 +278,12 @@ namespace symbiosis {
       if (p.is_charp()) {
         if (!pic_mode) {
           emit(register_parameters_arm_32[parameter_count], 3);
-          uchar *ldr_p = out_c - 1;
+          uchar *ldr_p = out_c;
           emit("\x12");
           int pc = parameter_count;
-          callback([pc]() { 
-              cout << "Would set string ref for : " << 
-              pc << endl; });
+          callback([=]() { 
+              ldr_p[0] = '\x23';
+              printf("Would set string ref for : 0x%zx\n", (size_t)ldr_p); });
         } else {
           throw exception("pic mode not supported yet!");
           //uchar *out_current_code_pos = out_c;
