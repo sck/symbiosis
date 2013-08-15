@@ -180,7 +180,9 @@ namespace symbiosis {
     virtual ~Backend() { }
     void callback(function<void()> f) { callbacks.push_back(f); }
     void perform_callbacks() { 
-        for (size_t i = 0; i < callbacks.size(); ++i) { callbacks[i]();  }}
+      for (size_t i = 0; i < callbacks.size(); ++i) { callbacks[i]();  }
+      callbacks.clear();
+    }
     virtual void add_parameter(id p) = 0;
     virtual void jmp(void *f) = 0;
     virtual void __call(void *f) = 0;
@@ -275,9 +277,10 @@ namespace symbiosis {
           emit(register_parameters_arm_32[parameter_count], 3);
           uchar *ldr_p = out_c - 1;
           emit("\x12");
-          callback([=]() { 
+          int pc = parameter_count;
+          callback([pc]() { 
               cout << "Would set string ref for : " << 
-              parameter_count << endl; });
+              pc << endl; });
         } else {
           throw exception("pic mode not supported yet!");
           //uchar *out_current_code_pos = out_c;
@@ -289,8 +292,9 @@ namespace symbiosis {
           emit(register_parameters_arm_32[parameter_count], 3);
           uchar *ldr_p = out_c - 1;
           emit("\x12");
-          callback([=]() { 
-              cout << "Would set imm for : " << parameter_count << endl; });
+          int pc = parameter_count;
+          callback([pc]() { 
+              cout << "Would set imm for : " << pc << endl; });
         } else if (p.is_64()) {
           throw exception("64bit not supported yet!");
         }
