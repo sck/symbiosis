@@ -292,12 +292,10 @@ namespace symbiosis {
         }
       } else if (p.is_integer()) {
         if (p.is_32()) {
-          emit(register_parameters_arm_32[parameter_count], 3);
+          emit(register_parameters_arm_32[parameter_count], 3); emit("\x12");
           uchar *ldr_p = out_c - 1;
-          emit("\x12");
           int pc = parameter_count;
-          callback([pc]() { 
-              cout << "Would set imm for : " << pc << endl; });
+          callback([pc]() { cout << "Would set pc-rel for : " << pc << endl; });
         } else if (p.is_64()) {
           throw exception("64bit not supported yet!");
         }
@@ -308,9 +306,8 @@ namespace symbiosis {
     }
     const char* arm_offset(uchar *out_current_code_pos, void *__virt_f) { 
       const char *r = call_offset(out_current_code_pos, __virt_f);
-      __ofs[0] = r[2];
-      __ofs[1] = r[1];
-      __ofs[2] = r[0];
+      __offset /= 4;
+      __ofs[0] = r[2]; __ofs[1] = r[1]; __ofs[2] = r[0];
       return (const char*)__ofs;
     }
     virtual void jmp(void *f)  { 
