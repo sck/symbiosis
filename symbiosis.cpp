@@ -308,10 +308,10 @@ namespace symbiosis {
     }
     const char* arm_offset(uchar *out_current_code_pos, void *__virt_f) { 
       const char *r = call_offset(out_current_code_pos, __virt_f);
-      __ofs[0] == r[2];
-      __ofs[1] == r[1];
-      __ofs[2] == r[0];
-      return (const char*)&__ofs;
+      __ofs[0] = r[2];
+      __ofs[1] = r[1];
+      __ofs[2] = r[0];
+      return (const char*)__ofs;
     }
     virtual void jmp(void *f)  { 
       uchar *out_current_code_pos = out_c;
