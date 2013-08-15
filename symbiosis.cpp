@@ -68,9 +68,8 @@ namespace symbiosis {
 
   unsigned int _i32 = 0;
 
-  const char* id::i32() {
+  const char* id::i32() const {
     if (virtual_adr) { _i32 = (size_t)virtual_adr; 
-         //printf("virtual_adr: %x\n", _i32);
         return (const char*)&_i32; }
     if (type == T_UINT) return (const char*)&d.ui;
     return (const char*)&d.i;
@@ -175,8 +174,8 @@ namespace symbiosis {
   constexpr int parameters_max = 3;
 
   class Backend {
-    vector<function<void()> > callbacks;
   public:
+    vector<function<void()> > callbacks;
     int parameter_count = 0; 
     Backend() { }
     virtual ~Backend() { }
@@ -197,6 +196,9 @@ namespace symbiosis {
       //dump(out_start, l);
     }
   };
+
+  Backend* backend;
+
 
   const char *register_parameters_intel_32[] = {
       "\xbf", /*edi*/ "\xbe", /*esi*/ "\xba" /*edx*/ };
@@ -277,15 +279,12 @@ namespace symbiosis {
     virtual void add_parameter(id p) {
       if (p.is_charp()) {
         if (!pic_mode) {
-          emit(register_parameters_arm_32[parameter_count], 3);
+          emit(register_parameters_arm_32[parameter_count], 3); emit("\x12");
           uchar *ldr_p = out_c;
-          emit("\x12");
-          int pc = parameter_count;
           callback([=]() { 
-              printf("diff: %zd\n", out_c - ldr_p);
-              dump(ldr_p, 1);
-              ldr_p[0] = (uchar)(out_c - ldr_p);
-              printf("Would set string ref for : 0x%zx\n", (size_t)ldr_p); });
+            ldr_p[0] = (uchar)(out_c - ldr_p);
+            emit(p.i32(), 4);
+          });
         } else {
           throw exception("pic mode not supported yet!");
           //uchar *out_current_code_pos = out_c;
@@ -295,9 +294,11 @@ namespace symbiosis {
       } else if (p.is_integer()) {
         if (p.is_32()) {
           emit(register_parameters_arm_32[parameter_count], 3); emit("\x12");
-          uchar *ldr_p = out_c - 1;
-          int pc = parameter_count;
-          callback([pc]() { cout << "Would set pc-rel for : " << pc << endl; });
+          uchar *ldr_p = out_c;
+          callback([=]() { 
+            ldr_p[0] = (uchar)(out_c - ldr_p);
+            emit(p.i32(), 4);
+          });
         } else if (p.is_64()) {
           throw exception("64bit not supported yet!");
         }
@@ -321,14 +322,16 @@ namespace symbiosis {
       uchar *out_current_code_pos = out_c;
       emit_byte(A_BL_eb);
       emit(arm_offset(out_current_code_pos, f), 3);
-      perform_callbacks();
+      if (callbacks.size() > 0) {
+        uchar *jmp_adr = out_c;
+        jmp(out_c);
+        perform_callbacks();
+      }
     }
     virtual void __vararg_call(void *f) {
       throw exception("No arm support yet!");
     }
   };
-
-  Backend* backend;
 
   id add_parameter(id p) {
     if (backend->parameter_count >= parameters_max) {

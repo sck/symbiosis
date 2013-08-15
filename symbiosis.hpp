@@ -88,7 +88,7 @@ namespace symbiosis {
     bool is_64() { return (type == T_ULONG || type == T_LONG); }
     bool is_integer() { return type <= T_ULONG; }
     bool is_charp() { return type == T_CHARP; }
-    const char* i32();
+    const char* i32() const;
     const char* i64();
     void describe();
     id operator()(id p);
