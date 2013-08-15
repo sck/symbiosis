@@ -22,6 +22,7 @@ void d(const char *s) {
 }
 
 SYMBIOSIS_MAIN({
+  h1(123, 456);
   add_parameter(123)(456); call(h1);
   add_parameter(id_new("Hello: "))(123)(456); call(h2);
   add_parameter(id_new("Hello")); call(h3);

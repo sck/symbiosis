@@ -152,8 +152,10 @@ namespace symbiosis {
     ssize_t out_start_distance = out_current_code_pos - out_code_start;
     ssize_t virt_dist_from_code_start = virt_f - virtual_code_start;
     __offset = virt_dist_from_code_start - out_start_distance - 5;
-    cout << "__virt_f: " << __virt_f << endl;
-    //cout << "call_offset: " << __offset << " virt: " << virt_dist_from_code_start << " out: " << out_start_distance << endl;
+    cout << "__virt_f: " << __virt_f ;
+    printf(" virtual_code_pos: %zx",  (size_t)(virtual_code_start +
+        out_start_distance));
+    cout << "call_offset: " << __offset << " virt: " << virt_dist_from_code_start << " out: " << out_start_distance << endl;
     return (const char*)&__offset;
   }
 
@@ -255,6 +257,7 @@ namespace symbiosis {
 
   class Arm : public Backend {
     int ofs = 1;
+    char __ofs[3];
   public:
     Arm() : Backend() { alloc_next_32_bits(); }
     void alloc_next_32_bits() {
@@ -303,15 +306,22 @@ namespace symbiosis {
         throw exception("No integer not supported yet");
       }
     }
+    const char* arm_offset(uchar *out_current_code_pos, void *__virt_f) { 
+      const char *r = call_offset(out_current_code_pos, __virt_f);
+      __ofs[0] == r[2];
+      __ofs[1] == r[1];
+      __ofs[2] == r[0];
+      return (const char*)&__ofs;
+    }
     virtual void jmp(void *f)  { 
       uchar *out_current_code_pos = out_c;
       emit_byte(A_B_08);
-      emit(call_offset(out_current_code_pos, f), 3);
+      emit(arm_offset(out_current_code_pos, f), 3);
     }
     virtual void __call(void *f) {
       uchar *out_current_code_pos = out_c;
       emit_byte(A_BL_eb);
-      emit(call_offset(out_current_code_pos, f), 3);
+      emit(arm_offset(out_current_code_pos, f), 3);
       perform_callbacks();
     }
     virtual void __vararg_call(void *f) {
