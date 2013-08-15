@@ -282,7 +282,9 @@ namespace symbiosis {
           emit("\x12");
           int pc = parameter_count;
           callback([=]() { 
-              ldr_p[0] = '\x23';
+              printf("diff: %zd\n", out_c - ldr_p);
+              dump(ldr_p, 1);
+              ldr_p[0] = (uchar)(out_c - ldr_p);
               printf("Would set string ref for : 0x%zx\n", (size_t)ldr_p); });
         } else {
           throw exception("pic mode not supported yet!");
