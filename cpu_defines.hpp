@@ -28,5 +28,5 @@ namespace symbiosis {
   constexpr uchar A_LDR_e5 = 0xe5;
   constexpr uchar A_PUSH_e9 = 0xe9;
   constexpr uchar A_BL_eb = 0xeb;
-  constexpr uchar A_B_08 = 0x08;
+  constexpr uchar A_B_ea = 0xea;
 }
