@@ -283,6 +283,7 @@ namespace symbiosis {
           uchar *ldr_p = out_c;
           callback([=]() { 
             ldr_p[0] = (uchar)(out_c - ldr_p);
+            std::cout << "ldr_p: " << (size_t)ldr_p[0] << endl;
             emit(p.i32(), 4);
           });
         } else {
@@ -297,6 +298,7 @@ namespace symbiosis {
           uchar *ldr_p = out_c;
           callback([=]() { 
             ldr_p[0] = (uchar)(out_c - ldr_p);
+            std::cout << "ldr_p: " << (size_t)ldr_p[0] << endl;
             emit(p.i32(), 4);
           });
         } else if (p.is_64()) {
@@ -326,6 +328,10 @@ namespace symbiosis {
         uchar *jmp_adr = out_c;
         jmp(out_c);
         perform_callbacks();
+        uchar *o = out_c;
+        out_c = jmp_adr;
+        jmp(virtual_code_start + (o - out_code_start));
+        out_c = o;
       }
     }
     virtual void __vararg_call(void *f) {
