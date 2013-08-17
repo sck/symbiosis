@@ -362,7 +362,6 @@ namespace symbiosis {
   void __vararg_call(void *f) { backend->__vararg_call(f); }
 
   void init(char *c, uchar *start, size_t ss, uchar *end, size_t es) {
-    arm = true; intel = false; pic_mode = false;
     cout << "intel: " << intel << ", arm: " << arm << 
         ", pic_mode: " << pic_mode << endl;
     command_file = c;
