@@ -195,6 +195,7 @@ namespace symbiosis {
       for (uchar * b  = s; b < e; b++)  emit_byte(*b);
       //dump(out_start, l);
     }
+    virtual void finish() = 0; 
   };
 
   Backend* backend;
@@ -252,6 +253,7 @@ namespace symbiosis {
       emit_byte(I_XOR_30); emit_byte(0xc0); // xor    al,al
       __call(f);
     }
+    void finish() { jmp(virtual_code_end); }
   };
 
   const char *register_parameters_arm_32[] = {
@@ -259,6 +261,7 @@ namespace symbiosis {
 
   class Arm : public Backend {
     int ofs = 1;
+    int swapped;
     char __ofs[3];
   public:
     Arm() : Backend() { alloc_next_32_bits(); }
@@ -276,32 +279,28 @@ namespace symbiosis {
         alloc_next_32_bits();
       }
     }
+    void load_pc_relative(id p) {
+      uchar *ldr_p = out_c - 4;
+      emit(register_parameters_arm_32[parameter_count], 3); emit("\x12");
+      callback([=]() { 
+        ldr_p[0] = (uchar)(out_c - ldr_p) - 12;
+        ssize_t out_start_distance = ldr_p - out_code_start;
+        size_t virt_pos = (size_t)virtual_code_start + out_start_distance;
+        std::cout << "ldr_p: " << (size_t)ldr_p[0];
+        printf(" virt_pos: %zx\n", virt_pos);
+        emit(swap_int(p.i32()), 4);
+      });
+    }
     virtual void add_parameter(id p) {
       if (p.is_charp()) {
-        if (!pic_mode) {
-          emit(register_parameters_arm_32[parameter_count], 3); emit("\x12");
-          uchar *ldr_p = out_c;
-          callback([=]() { 
-            ldr_p[0] = (uchar)(out_c - ldr_p);
-            std::cout << "ldr_p: " << (size_t)ldr_p[0] << endl;
-            emit(p.i32(), 4);
-          });
-        } else {
+        if (!pic_mode) { load_pc_relative(p); } else {
           throw exception("pic mode not supported yet!");
           //uchar *out_current_code_pos = out_c;
           //emit(register_rip_relative_parameters_intel_64[parameter_count]);
           //emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
         }
       } else if (p.is_integer()) {
-        if (p.is_32()) {
-          emit(register_parameters_arm_32[parameter_count], 3); emit("\x12");
-          uchar *ldr_p = out_c;
-          callback([=]() { 
-            ldr_p[0] = (uchar)(out_c - ldr_p);
-            std::cout << "ldr_p: " << (size_t)ldr_p[0] << endl;
-            emit(p.i32(), 4);
-          });
-        } else if (p.is_64()) {
+        if (p.is_32()) { load_pc_relative(p); } else if (p.is_64()) {
           throw exception("64bit not supported yet!");
         }
       } else {
@@ -309,9 +308,17 @@ namespace symbiosis {
         throw exception("No integer not supported yet");
       }
     }
+    const char *swap_int(const char* i) {
+      auto p = (char*)&swapped;
+      p[0] = i[3]; p[1] = i[2]; p[2] = i[1]; p[3] = i[0];
+      return p;
+    }
+    
     const char* arm_offset(uchar *out_current_code_pos, void *__virt_f) { 
       const char *r = call_offset(out_current_code_pos, __virt_f);
+      printf("__offset: before: %d ", __offset);
       __offset /= 4;
+      printf("-> %d \n", __offset);
       __ofs[0] = r[2]; __ofs[1] = r[1]; __ofs[2] = r[0];
       return (const char*)__ofs;
     }
@@ -337,6 +344,7 @@ namespace symbiosis {
     virtual void __vararg_call(void *f) {
       throw exception("No arm support yet!");
     }
+    void finish() { jmp(virtual_code_end + 4); }
   };
 
   id add_parameter(id p) {
@@ -374,7 +382,7 @@ namespace symbiosis {
   }
 
   void finish() {
-    jmp(virtual_code_end);
+    backend->finish();
     write();
   }
 
