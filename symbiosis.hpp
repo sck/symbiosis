@@ -66,6 +66,7 @@ namespace symbiosis {
 
   class id {
   public:
+    int register_value_ = -1;
     uchar *virtual_adr = 0;
     size_t virtual_size = 0;
     short int type;
@@ -88,9 +89,13 @@ namespace symbiosis {
     bool is_64() { return (type == T_ULONG || type == T_LONG); }
     bool is_integer() { return type <= T_ULONG; }
     bool is_charp() { return type == T_CHARP; }
+    bool is_p() { return is_charp(); }
     const char* i32() const;
     const char* i64();
     void describe();
+    int register_value() { return register_value_; }
+    void set_register_value(int rv) { register_value_ = rv; }
+    bool is_register() { return register_value_ > -1; }
     id operator()(id p);
   };
 

@@ -212,6 +212,9 @@ namespace symbiosis {
       "\x48\xbf" /*rdi*/, "\x48\xbe" ,/*rsi*/ "\x48\xba" /*rdx*/ };
 
   class Intel : public Backend {
+    vector<int> parameter_register_values = { I_REG_DI, I_REG_SI, I_REG_D };
+    vector<int> variable_register_values = { I_REG_B, I_REG_R12, 
+        I_REG_R13, I_REG_R14, I_REG_R15 };
   public:
     Intel() : Backend() { }
     void emit_byte(uchar c) {
@@ -219,14 +222,47 @@ namespace symbiosis {
       *out_c = c;
       out_c++;
     }
+    void emit_modrm(uchar reg, uchar rm, uchar mod) {
+      uchar mod_rm = mod + (reg << 3) + rm;
+      emit_byte(mod_rm);
+    }
+    void emit_rex(id r, id rm) {
+      uchar rex = 0x0;
+      if (r.register_value() > 7) { rex |= I_REX_REGISTER_EXT_41; }
+      if (rm.register_value() > 7) { rex |= I_REX_RM_EXT_44; }
+      if (r.is_64()) { rex |= I_REX_64_BIT_48; }
+      if (rex) emit_byte(rex);
+    }
+    void emit_op(uchar opcode, id r, id rm, bool swapped = false) {
+      emit_rex(r, rm);
+      emit_byte(opcode);
+      uchar mod = 0x0;
+      if (rm.is_register()) { mod = I_MOD_REGISTER_C0; }
+      if (rm.is_p()) {
+        if (pic_mode) { 
+          rm.set_register_value(I_REG_RIP_REL);
+          mod = I_MOD_INDEX_00;
+        } else {
+          mod = I_MOD_INDEX_P_SBYTE_40;
+        }
+      }
+      id r1 = swapped ? rm : r;
+      id r2 = swapped ? r : rm;
+      emit_modrm(r1.register_value() & 7, r2.register_value() & 7, mod);
+    }
     virtual void add_parameter(id p) {
       if (p.is_charp()) {
         if (!pic_mode) {
+          cout << "charp: NO pic_mode" << endl;
           emit(register_parameters_intel_32[parameter_count]);
           emit(p.i32(), 4);
         } else {
+          cout << "charp: pic_mode" << endl;
           uchar *out_current_code_pos = out_c;
-          emit(register_rip_relative_parameters_intel_64[parameter_count]);
+          id p_reg(0); p_reg.set_register_value(
+              parameter_register_values[parameter_count]);
+          emit_op(I_LEA_8d, p_reg, p);
+          //emit(register_rip_relative_parameters_intel_64[parameter_count]);
           emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
         }
       } else if (p.is_integer()) {
