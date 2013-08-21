@@ -262,21 +262,15 @@ namespace symbiosis {
     }
     void store(id dest, id source) {
       uchar *out_current_code_pos = out_c;
-      if (source.is_imm()) {
-        __debug = true;
+      if (source.is_p() && pic_mode) {
+        emit_op(I_LEA_8d, dest, source);
+        emit(rip_relative_offset(out_current_code_pos, 
+            source.virtual_adr), 4);
+      } else if (source.is_imm() || source.is_p()) {
         bool _64 = source.is_64();
         if (_64) { emit_byte(I_REX_64_BIT_48); }
         emit_byte(I_MOV_r64_imm64_b8 + (dest.register_value() & 7)); 
         emit(_64 ? source.i64(): source.i32(), _64 ? 8 : 4);
-        __debug = false;
-      } else if (source.is_p()) {
-        if (pic_mode) {
-          emit_op(I_LEA_8d, dest, source);
-          emit(rip_relative_offset(out_current_code_pos, 
-              source.virtual_adr), 4);
-        } else {
-          throw exception("no pic mode not supported yet!");
-        }
       }
     }
     virtual void add_parameter(id p) {
