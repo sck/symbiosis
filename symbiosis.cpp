@@ -79,7 +79,7 @@ namespace symbiosis {
     return (const char*)&d.l;
   }
   vector<const char*> type_str = { "0:???", "int", "uint", "long", "ulong", 
-      "charp", "float", "double"};
+      "charp", "float", "double", "register"};
 
   void id::describe() { 
     if (type > type_str.size() - 1) {
@@ -99,6 +99,13 @@ namespace symbiosis {
     memcpy(out_s, p, virtual_size + 1);
     out_s += virtual_size + 1;
   };  
+
+  id_register::id_register(int r, int size) : id(0) {
+    type = T_REGISTER;
+    register_value_ = r;
+    if (size == sizeof(unsigned long)) { type = T_ULONG; }
+    if (size == sizeof(unsigned int)) { type = T_UINT; }
+  }
 
   
   const char *reserved_strings[] = { STRINGS_START,
@@ -211,6 +218,8 @@ namespace symbiosis {
   const char *register_parameters_intel_64[] = {
       "\x48\xbf" /*rdi*/, "\x48\xbe" ,/*rsi*/ "\x48\xba" /*rdx*/ };
 
+  bool __debug = false;
+
   class Intel : public Backend {
     vector<int> parameter_register_values = { I_REG_DI, I_REG_SI, I_REG_D };
     vector<int> variable_register_values = { I_REG_B, I_REG_R12, 
@@ -220,6 +229,7 @@ namespace symbiosis {
     void emit_byte(uchar c) {
       if (out_c + 1 > out_code_end) throw exception("Code: Out of memory"); 
       *out_c = c;
+      if (__debug) printf("%02x ", c); 
       out_c++;
     }
     void emit_modrm(uchar reg, uchar rm, uchar mod) {
@@ -250,30 +260,52 @@ namespace symbiosis {
       id r2 = swapped ? r : rm;
       emit_modrm(r1.register_value() & 7, r2.register_value() & 7, mod);
     }
-    virtual void add_parameter(id p) {
-      if (p.is_charp()) {
-        if (!pic_mode) {
-          cout << "charp: NO pic_mode" << endl;
-          emit(register_parameters_intel_32[parameter_count]);
-          emit(p.i32(), 4);
+    void store(id dest, id source) {
+      uchar *out_current_code_pos = out_c;
+      if (source.is_imm()) {
+        __debug = true;
+        bool _64 = source.is_64();
+        if (_64) { emit_byte(I_REX_64_BIT_48); }
+        emit_byte(I_MOV_r64_imm64_b8 + (dest.register_value() & 7)); 
+        emit(_64 ? source.i64(): source.i32(), _64 ? 8 : 4);
+        __debug = false;
+      } else if (source.is_p()) {
+        if (pic_mode) {
+          emit_op(I_LEA_8d, dest, source);
+          emit(rip_relative_offset(out_current_code_pos, 
+              source.virtual_adr), 4);
         } else {
-          cout << "charp: pic_mode" << endl;
-          uchar *out_current_code_pos = out_c;
-          id p_reg(0); p_reg.set_register_value(
-              parameter_register_values[parameter_count]);
-          emit_op(I_LEA_8d, p_reg, p);
-          //emit(register_rip_relative_parameters_intel_64[parameter_count]);
-          emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
-        }
-      } else if (p.is_integer()) {
-        if (p.is_32()) {
-          emit(register_parameters_intel_32[parameter_count]);
-          emit(p.i32(), 4);
-        } else if (p.is_64()) {
-          emit(register_parameters_intel_64[parameter_count]);
-          emit(p.i64(), 8);
+          throw exception("no pic mode not supported yet!");
         }
       }
+    }
+    virtual void add_parameter(id p) {
+      id_register p_reg(parameter_register_values[parameter_count], 
+          sizeof(size_t));
+      store(p_reg, p);
+      //if (p.is_charp()) {
+      //  if (!pic_mode) {
+      //    cout << "charp: NO pic_mode" << endl;
+      //    emit(register_parameters_intel_32[parameter_count]);
+      //    emit(p.i32(), 4);
+      //  } else {
+      //    cout << "charp: pic_mode" << endl;
+      //    uchar *out_current_code_pos = out_c;
+      //    id_register p_reg(parameter_register_values[parameter_count], 
+      //        sizeof(size_t));
+      //    emit_op(I_LEA_8d, p_reg, p);
+      //    //emit(register_rip_relative_parameters_intel_64[parameter_count]);
+      //    emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
+      //  }
+      //} else if (p.is_integer()) {
+      //  if (p.is_32()) {
+      //    emit(register_parameters_intel_32[parameter_count]);
+      //    emit(p.i32(), 4);
+      //  } else if (p.is_64()) {
+      //    emit(register_parameters_intel_64[parameter_count]);
+      //    emit(p.i64(), 8);
+      //  }
+      //}
     }
     virtual void jmp(void *f)  {
       uchar *out_current_code_pos = out_c;

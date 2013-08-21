@@ -52,7 +52,7 @@ SYMBIOSIS_MAIN({
   //  condition(v < 10) && .end_loop();
   //  add_parameter(v).call(show);
   //});
-  //add_parameter(123)(456); call(h1);
+  add_parameter(123)(456); call(h1);
   add_parameter(id_new("Hello: "))(123)(456); call(h2);
-  //add_parameter(id_new("Hello")); call(h3);
+  add_parameter(id_new("Hello")); call(h3);
 });

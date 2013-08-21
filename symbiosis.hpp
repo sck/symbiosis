@@ -63,6 +63,7 @@ namespace symbiosis {
   constexpr short int T_CHARP = 5;
   constexpr short int T_FLOAT = 6;
   constexpr short int T_DOUBLE = 7;
+  constexpr short int T_REGISTER = 8;
 
   class id {
   public:
@@ -90,6 +91,7 @@ namespace symbiosis {
     bool is_integer() { return type <= T_ULONG; }
     bool is_charp() { return type == T_CHARP; }
     bool is_p() { return is_charp(); }
+    bool is_imm() { return is_integer(); }
     const char* i32() const;
     const char* i64();
     void describe();
@@ -102,6 +104,11 @@ namespace symbiosis {
   class id_new : public id {
   public:
     id_new(const char *s);
+  };
+
+  class id_register : public id {
+  public:
+    id_register(int r, int size); 
   };
 
   id add_parameter(id p);

@@ -13,7 +13,7 @@ namespace symbiosis {
   constexpr uchar I_PUSH_BP_55 = 0x55;
   constexpr uchar I_LEA_8d = 0x8d;
   constexpr uchar I_MOV_r8_rm8_8a = 0x8a;
-  constexpr uchar I_MOV_r64_r64_8b = 0x8b;
+  constexpr uchar I_MOV_r64_imm64_b8 = 0xb8;
 
   constexpr uchar I_LEA_bf = 0xbf;
   constexpr uchar I_JMP_e9 = 0xe9;
