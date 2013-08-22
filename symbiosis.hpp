@@ -63,7 +63,10 @@ namespace symbiosis {
   constexpr short int T_CHARP = 5;
   constexpr short int T_FLOAT = 6;
   constexpr short int T_DOUBLE = 7;
-  constexpr short int T_REGISTER = 8;
+
+  constexpr short int ST_IMMEDIATE = 0;
+  constexpr short int ST_REGISTER = 1;
+  constexpr short int ST_POINTER = 2;
 
   class id {
   public:
@@ -71,6 +74,7 @@ namespace symbiosis {
     uchar *virtual_adr = 0;
     size_t virtual_size = 0;
     short int type;
+    short int storage_type = ST_IMMEDIATE;
     union {
       int i;
       unsigned int ui;
@@ -90,14 +94,20 @@ namespace symbiosis {
     bool is_64() { return (type == T_ULONG || type == T_LONG); }
     bool is_integer() { return type <= T_ULONG; }
     bool is_charp() { return type == T_CHARP; }
-    bool is_p() { return is_charp(); }
-    bool is_imm() { return is_integer(); }
     const char* i32() const;
     const char* i64();
     void describe();
     int register_value() { return register_value_; }
     void set_register_value(int rv) { register_value_ = rv; }
-    bool is_register() { return register_value_ > -1; }
+    bool is_imm() { return storage_type == ST_IMMEDIATE; }
+    bool is_register() { return storage_type == ST_REGISTER; }
+    bool is_pointer() { return storage_type == ST_POINTER; }
+    void set_register_storage(int r, int size) { 
+      register_value_ = r;
+      storage_type = ST_REGISTER; 
+      if (size == sizeof(unsigned long)) { type = T_ULONG; }
+      if (size == sizeof(unsigned int)) { type = T_UINT; }
+    }
     id operator()(id p);
   };
 
@@ -110,6 +120,8 @@ namespace symbiosis {
   public:
     id_register(int r, int size); 
   };
+
+  id new_var(id);
 
   id add_parameter(id p);
   void __call(void *f);

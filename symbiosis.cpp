@@ -14,6 +14,8 @@ using namespace std;
 
 namespace symbiosis {
 
+  bool __debug = false;
+
   void dump(uchar* start, size_t s) {
     for (size_t i = 0; i < s; i++) {
       printf("%02x ", start[i]);
@@ -92,6 +94,7 @@ namespace symbiosis {
   id  id::operator()(id i) { add_parameter(i); return i; }
 
   id_new::id_new(const char *p) : id(p) {
+    storage_type = ST_POINTER;
     virtual_adr = virtual_strings_start + (out_s - out_strings_start);
     virtual_size = strlen(p);
     if (out_s + virtual_size + 1 > out_strings_end) 
@@ -100,11 +103,8 @@ namespace symbiosis {
     out_s += virtual_size + 1;
   };  
 
-  id_register::id_register(int r, int size) : id(0) {
-    type = T_REGISTER;
-    register_value_ = r;
-    if (size == sizeof(unsigned long)) { type = T_ULONG; }
-    if (size == sizeof(unsigned int)) { type = T_UINT; }
+  id_register::id_register(int r, int size = sizeof(size_t)) : id(0) {
+    set_register_storage(r, size);
   }
 
   
@@ -180,16 +180,19 @@ namespace symbiosis {
 
   constexpr int parameters_max = 3;
 
+ typedef vector<function<void()> > callbacks_t;
   class Backend {
   public:
-    vector<function<void()> > callbacks;
+    callbacks_t after_call;
+    callbacks_t function_cleanup;
     int parameter_count = 0; 
     Backend() { }
     virtual ~Backend() { }
-    void callback(function<void()> f) { callbacks.push_back(f); }
-    void perform_callbacks() { 
-      for (size_t i = 0; i < callbacks.size(); ++i) { callbacks[i]();  }
-      callbacks.clear();
+    void callback(callbacks_t &cb, function<void()> f) { 
+          cb.push_back(f); }
+    void perform_callbacks(callbacks_t &cb) { 
+      for (int i = cb.size() - 1; i >= 0; --i) { cb[i]();  }
+      cb.clear();
     }
     virtual void add_parameter(id p) = 0;
     virtual void jmp(void *f) = 0;
@@ -200,32 +203,46 @@ namespace symbiosis {
       size_t l = _l > 0 ? _l : strlen(_s);
       uchar *s = (uchar *)_s; uchar *e = s + l;
       for (uchar * b  = s; b < e; b++)  emit_byte(*b);
-      //dump(out_start, l);
     }
     virtual void finish() = 0; 
+    virtual int new_register_var() = 0;
+    virtual void preserve(id v) = 0;
+    virtual void store(id dest, id source) = 0;
   };
 
   Backend* backend;
 
+  constexpr int variables_max = 3;
+  int variable_count = 0; 
 
-  const char *register_parameters_intel_32[] = {
-      "\xbf", /*edi*/ "\xbe", /*esi*/ "\xba" /*edx*/ };
-  
-  const char *register_rip_relative_parameters_intel_64[] = {
-    "\x48\x8d\x3d", /* rdi */ "\x48\x8d\x35", /* rsi */ 
-    "\x48\x8d\x15" /* rdx */ };
-
-  const char *register_parameters_intel_64[] = {
-      "\x48\xbf" /*rdi*/, "\x48\xbe" ,/*rsi*/ "\x48\xba" /*rdx*/ };
-
-  bool __debug = false;
+  id new_var(id _v) {
+    id v = _v;
+    if (variable_count >= variables_max) 
+      throw exception("Too many variables!");
+    int register_value = backend->new_register_var();
+    v.set_register_storage(register_value, sizeof(size_t));
+    backend->preserve(v);
+    ++variable_count;
+    __debug = true;
+    backend->store(v, _v);
+    __debug = false;
+    return v;
+  }
 
   class Intel : public Backend {
     vector<int> parameter_register_values = { I_REG_DI, I_REG_SI, I_REG_D };
     vector<int> variable_register_values = { I_REG_B, I_REG_R12, 
-        I_REG_R13, I_REG_R14, I_REG_R15 };
+      I_REG_R13, I_REG_R14, I_REG_R15 };
   public:
     Intel() : Backend() { }
+    // XXX: Check for inside scope/loop
+    virtual int new_register_var() {
+      return variable_register_values[variable_count];
+    }
+    virtual void preserve(id v) { 
+      push(v); 
+      callback(function_cleanup, [=]() { pop(v); });
+    }
     void emit_byte(uchar c) {
       if (out_c + 1 > out_code_end) throw exception("Code: Out of memory"); 
       *out_c = c;
@@ -243,12 +260,19 @@ namespace symbiosis {
       if (r.is_64()) { rex |= I_REX_64_BIT_48; }
       if (rex) emit_byte(rex);
     }
+    void emit_rex_single(id r, int _64 = -1) {
+      if (_64 == -1) _64 = r.is_64();
+      uchar rex = 0x0;
+      if (r.register_value() > 7) { rex |= I_REX_REGISTER_EXT_41; }
+      if (_64) { rex |= I_REX_64_BIT_48; }
+      if (rex) emit_byte(rex);
+    }
     void emit_op(uchar opcode, id r, id rm, bool swapped = false) {
       emit_rex(r, rm);
       emit_byte(opcode);
       uchar mod = 0x0;
       if (rm.is_register()) { mod = I_MOD_REGISTER_C0; }
-      if (rm.is_p()) {
+      if (rm.is_pointer()) {
         if (pic_mode) { 
           rm.set_register_value(I_REG_RIP_REL);
           mod = I_MOD_INDEX_00;
@@ -260,46 +284,32 @@ namespace symbiosis {
       id r2 = swapped ? r : rm;
       emit_modrm(r1.register_value() & 7, r2.register_value() & 7, mod);
     }
-    void store(id dest, id source) {
+    void emit_plus_op(uchar op, id r, int _64 = -1) {
+      if (!r.is_register()) throw exception("Register expected");
+      if (_64 == -1) _64 = r.is_64();
+      emit_rex_single(r, _64);
+      emit_byte(op + (r.register_value() & 7)); 
+    }
+    virtual void store(id dest, id source) {
       uchar *out_current_code_pos = out_c;
-      if (source.is_p() && pic_mode) {
+      if (source.is_pointer() && pic_mode) {
         emit_op(I_LEA_8d, dest, source);
         emit(rip_relative_offset(out_current_code_pos, 
             source.virtual_adr), 4);
-      } else if (source.is_imm() || source.is_p()) {
+      } else if (source.is_imm() || source.is_pointer()) {
         bool _64 = source.is_64();
-        if (_64) { emit_byte(I_REX_64_BIT_48); }
-        emit_byte(I_MOV_r64_imm64_b8 + (dest.register_value() & 7)); 
+        emit_plus_op(I_MOV_r64_imm64_b8, dest, _64);
+        //emit_rex_single(dest, _64);
+        //emit_byte(I_MOV_r64_imm64_b8 + (dest.register_value() & 7)); 
         emit(_64 ? source.i64(): source.i32(), _64 ? 8 : 4);
       }
     }
+    void push(id p) { emit_plus_op(I_PUSH_r64_50, p); }
+    void pop(id p) { emit_plus_op(I_POP_r64_58, p); }
     virtual void add_parameter(id p) {
       id_register p_reg(parameter_register_values[parameter_count], 
           sizeof(size_t));
       store(p_reg, p);
-      //if (p.is_charp()) {
-      //  if (!pic_mode) {
-      //    cout << "charp: NO pic_mode" << endl;
-      //    emit(register_parameters_intel_32[parameter_count]);
-      //    emit(p.i32(), 4);
-      //  } else {
-      //    cout << "charp: pic_mode" << endl;
-      //    uchar *out_current_code_pos = out_c;
-      //    id_register p_reg(parameter_register_values[parameter_count], 
-      //        sizeof(size_t));
-      //    emit_op(I_LEA_8d, p_reg, p);
-      //    //emit(register_rip_relative_parameters_intel_64[parameter_count]);
-      //    emit(rip_relative_offset(out_current_code_pos, p.virtual_adr), 4);
-      //  }
-      //} else if (p.is_integer()) {
-      //  if (p.is_32()) {
-      //    emit(register_parameters_intel_32[parameter_count]);
-      //    emit(p.i32(), 4);
-      //  } else if (p.is_64()) {
-      //    emit(register_parameters_intel_64[parameter_count]);
-      //    emit(p.i64(), 8);
-      //  }
-      //}
     }
     virtual void jmp(void *f)  {
       uchar *out_current_code_pos = out_c;
@@ -315,7 +325,10 @@ namespace symbiosis {
       emit_byte(I_XOR_30); emit_byte(0xc0); // xor    al,al
       __call(f);
     }
-    void finish() { jmp(virtual_code_end); }
+    void finish() { 
+      perform_callbacks(function_cleanup);
+      jmp(virtual_code_end); 
+    }
   };
 
   const char *register_parameters_arm_32[] = {
@@ -327,6 +340,9 @@ namespace symbiosis {
     char __ofs[3];
   public:
     Arm() : Backend() { alloc_next_32_bits(); }
+    virtual void store(id dest, id source) { }
+    virtual int new_register_var() { return -1; }
+    virtual void preserve(id v) { }
     void alloc_next_32_bits() {
       if (out_c + 4 > out_code_end) throw exception("Code: Out of memory"); 
       out_c += 4;
@@ -344,7 +360,7 @@ namespace symbiosis {
     void load_pc_relative(id p) {
       uchar *ldr_p = out_c - 4;
       emit(register_parameters_arm_32[parameter_count], 3); emit("\x12");
-      callback([=]() { 
+      callback(after_call, [=]() { 
         ldr_p[0] = (uchar)(out_c - ldr_p) - 12;
         ssize_t out_start_distance = ldr_p - out_code_start;
         size_t virt_pos = (size_t)virtual_code_start + out_start_distance;
@@ -393,10 +409,10 @@ namespace symbiosis {
       uchar *out_current_code_pos = out_c;
       emit_byte(A_BL_eb);
       emit(arm_offset(out_current_code_pos, f), 3);
-      if (callbacks.size() > 0) {
+      if (after_call.size() > 0) {
         uchar *jmp_adr = out_c;
         jmp(out_c);
-        perform_callbacks();
+        perform_callbacks(after_call);
         uchar *o = out_c;
         out_c = jmp_adr;
         jmp(virtual_code_start + (o - out_code_start));
@@ -410,10 +426,8 @@ namespace symbiosis {
   };
 
   id add_parameter(id p) {
-    if (backend->parameter_count >= parameters_max) {
-      fprintf(stderr, "Too many parameters!\n");
-      return p;
-    }
+    if (backend->parameter_count >= parameters_max) 
+        throw exception("Too many parameters!");
     backend->add_parameter(p);
     ++backend->parameter_count;
     return p;
