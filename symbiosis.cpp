@@ -80,6 +80,13 @@ namespace symbiosis {
     if (type == T_ULONG) return (const char*)&d.ul;
     return (const char*)&d.l;
   }
+  void id::set_register_storage(int r, int size) {
+    register_value_ = r;
+    storage_type = ST_REGISTER; 
+    if (size == sizeof(unsigned long)) { type = T_ULONG; }
+    if (size == sizeof(unsigned int)) { type = T_UINT; }
+  }
+
   vector<const char*> type_str = { "0:???", "int", "uint", "long", "ulong", 
       "charp", "float", "double", "register"};
 
@@ -208,9 +215,21 @@ namespace symbiosis {
     virtual int new_register_var() = 0;
     virtual void preserve(id v) = 0;
     virtual void store(id dest, id source) = 0;
+    virtual void mul(id dest, id b) = 0;
+    virtual void div(id dest, id b) = 0;
+    virtual void add(id dest, id b) = 0;
+    virtual void sub(id dest, id b) = 0;
   };
 
   Backend* backend;
+
+  void id::mul(id b) { 
+    backend->mul(*this, b); 
+  }
+  void id::div(id b) { backend->div(*this, b); }
+  void id::add(id b) { backend->add(*this, b); }
+  void id::sub(id b) { backend->sub(*this, b); }
+
 
   constexpr int variables_max = 3;
   int variable_count = 0; 
@@ -223,9 +242,7 @@ namespace symbiosis {
     v.set_register_storage(register_value, sizeof(size_t));
     backend->preserve(v);
     ++variable_count;
-    __debug = true;
     backend->store(v, _v);
-    __debug = false;
     return v;
   }
 
@@ -253,8 +270,14 @@ namespace symbiosis {
       uchar mod_rm = mod + (reg << 3) + rm;
       emit_byte(mod_rm);
     }
-    void emit_rex(id r, id rm) {
+    void emit_rex(id _r, id _rm, bool swapped = false) {
+      id r = swapped ? _rm : _r;
+      id rm = swapped ? _r : _rm;
       uchar rex = 0x0;
+      if (__debug) {
+        printf("r.rv: %d\n", r.register_value());
+        printf("rm.rv: %d\n", rm.register_value());
+      }
       if (r.register_value() > 7) { rex |= I_REX_REGISTER_EXT_41; }
       if (rm.register_value() > 7) { rex |= I_REX_RM_EXT_44; }
       if (r.is_64()) { rex |= I_REX_64_BIT_48; }
@@ -267,8 +290,10 @@ namespace symbiosis {
       if (_64) { rex |= I_REX_64_BIT_48; }
       if (rex) emit_byte(rex);
     }
-    void emit_op(uchar opcode, id r, id rm, bool swapped = false) {
-      emit_rex(r, rm);
+    void emit_rm_op(uchar opcode, id r, id rm, uchar op_prefix = 0x0,
+        bool swapped = false ) {
+      emit_rex(r, rm, swapped);
+      if (op_prefix) emit_byte(op_prefix);
       emit_byte(opcode);
       uchar mod = 0x0;
       if (rm.is_register()) { mod = I_MOD_REGISTER_C0; }
@@ -280,8 +305,9 @@ namespace symbiosis {
           mod = I_MOD_INDEX_P_SBYTE_40;
         }
       }
-      id r1 = swapped ? rm : r;
-      id r2 = swapped ? r : rm;
+      bool s= false;
+      id r1 = s ? rm : r;
+      id r2 = s ? r : rm;
       emit_modrm(r1.register_value() & 7, r2.register_value() & 7, mod);
     }
     void emit_plus_op(uchar op, id r, int _64 = -1) {
@@ -293,7 +319,7 @@ namespace symbiosis {
     virtual void store(id dest, id source) {
       uchar *out_current_code_pos = out_c;
       if (source.is_pointer() && pic_mode) {
-        emit_op(I_LEA_8d, dest, source);
+        emit_rm_op(I_LEA_8d, dest, source);
         emit(rip_relative_offset(out_current_code_pos, 
             source.virtual_adr), 4);
       } else if (source.is_imm() || source.is_pointer()) {
@@ -325,6 +351,24 @@ namespace symbiosis {
       emit_byte(I_XOR_30); emit_byte(0xc0); // xor    al,al
       __call(f);
     }
+    virtual void mul(id dest, id b) { 
+      if (dest.is_imm()) throw exception("Can't mul immediate value.");
+      if (b.is_register()) {
+        emit_rm_op(I_IMUL_r64_r64_AF, dest, b, 0xF, true); 
+      } else if (b.is_imm()) {
+        if (b.is_64()) throw exception("Value too large!");
+        if (b.d.ui <= 0xFF) {
+          emit_rm_op(I_IMUL_r64_r64_imm8_6B, dest, dest);
+          emit_byte(b.d.ui);
+        } else {
+          emit_rm_op(I_IMUL_r64_r64_imm32_69, dest, dest);
+          emit(b.i32(), 4);
+        }
+      }
+    }
+    virtual void div(id dest, id b) { }
+    virtual void add(id dest, id b) { }
+    virtual void sub(id dest, id b) { }
     void finish() { 
       perform_callbacks(function_cleanup);
       jmp(virtual_code_end); 
@@ -422,6 +466,10 @@ namespace symbiosis {
     virtual void __vararg_call(void *f) {
       throw exception("No arm support yet!");
     }
+    virtual void mul(id dest, id b) { }
+    virtual void div(id dest, id b) { }
+    virtual void add(id dest, id b) { }
+    virtual void sub(id dest, id b) { }
     void finish() { jmp(virtual_code_end + 4); }
   };
 

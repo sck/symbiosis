@@ -102,13 +102,12 @@ namespace symbiosis {
     bool is_imm() { return storage_type == ST_IMMEDIATE; }
     bool is_register() { return storage_type == ST_REGISTER; }
     bool is_pointer() { return storage_type == ST_POINTER; }
-    void set_register_storage(int r, int size) { 
-      register_value_ = r;
-      storage_type = ST_REGISTER; 
-      if (size == sizeof(unsigned long)) { type = T_ULONG; }
-      if (size == sizeof(unsigned int)) { type = T_UINT; }
-    }
+    void set_register_storage(int r, int size);
     id operator()(id p);
+    void mul(id b);
+    void div(id b);
+    void add(id b);
+    void sub(id b);
   };
 
   class id_new : public id {
