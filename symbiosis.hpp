@@ -102,8 +102,11 @@ namespace symbiosis {
     bool is_imm() { return storage_type == ST_IMMEDIATE; }
     bool is_register() { return storage_type == ST_REGISTER; }
     bool is_pointer() { return storage_type == ST_POINTER; }
+    bool is_signed() { return type == T_INT || T_LONG; }
     void set_register_storage(int r, int size);
     id operator()(id p);
+    unsigned long long_value() { return is_32() ? d.ui : d.ul; }
+    int size() { return is_64() ? 8 : 4; }
     void mul(id b);
     void div(id b);
     void add(id b);

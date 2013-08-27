@@ -8,14 +8,24 @@ namespace symbiosis {
   constexpr uchar I_PUSH_r64_50 = 0x50;
   constexpr uchar I_POP_r64_58 = 0x58;
   constexpr uchar I_LEA_8d = 0x8d;
+  constexpr uchar I_XOR_r64_31 = 0x31;
+  constexpr uchar I_XOR_r8_30 = 0x30;
+  constexpr uchar I_DIV_rAX_r64_F7 = 0xF7;
+  constexpr uchar I_CDQ_99 = 0x99;
   constexpr uchar I_IMUL_r64_r64_AF = 0xAF;
   constexpr uchar I_IMUL_r64_r64_imm32_69 = 0x69;
   constexpr uchar I_IMUL_r64_r64_imm8_6B = 0x6B;
+  constexpr uchar I_ADD_r64_r64_01 = 0x01;
+  constexpr uchar I_ADD_RAX_imm32_05 = 0x05;
+  constexpr uchar I_ADD_r64_imm32_81 = 0x81;
+  constexpr uchar I_ADD_r64_imm8_83 = 0x83;
+  constexpr uchar I_INC_r64_FF = 0xFF;
+  constexpr uchar I_DEC_r64_FF = I_INC_r64_FF;
   constexpr uchar I_MOV_r64_imm64_b8 = 0xb8;
+  constexpr uchar I_MOV_r64_r64_89 = 0x89;
 
   constexpr uchar I_JMP_e9 = 0xe9;
   constexpr uchar I_CALL_e8 = 0xe8;
-  constexpr uchar I_XOR_30 = 0x30;
 
   // Intel: Mod/RM
   constexpr uchar I_MOD_INDEX_00 = 0x00;

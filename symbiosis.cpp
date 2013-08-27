@@ -89,8 +89,15 @@ namespace symbiosis {
 
   vector<const char*> type_str = { "0:???", "int", "uint", "long", "ulong", 
       "charp", "float", "double", "register"};
+  vector<const char*> storage_type_str = { "immediate", "register",
+      "pointer"};
 
   void id::describe() { 
+    if (storage_type < 0 || storage_type > storage_type_str.size() - 1) {
+      cout << "[st:" << storage_type  << "]";
+    } else {
+      cout << storage_type_str[storage_type] << ":"; 
+    }
     if (type > type_str.size() - 1) {
       cout << "<id:" << type << ">";
     } else {
@@ -296,7 +303,11 @@ namespace symbiosis {
       if (op_prefix) emit_byte(op_prefix);
       emit_byte(opcode);
       uchar mod = 0x0;
-      if (rm.is_register()) { mod = I_MOD_REGISTER_C0; }
+      if (__debug) {
+        printf("rm.is_register: %d\n", rm.is_register());
+        cout << "rm: "; rm.describe();
+      }
+      if (rm.is_register() || rm.is_imm()) { mod = I_MOD_REGISTER_C0; }
       if (rm.is_pointer()) {
         if (pic_mode) { 
           rm.set_register_value(I_REG_RIP_REL);
@@ -310,6 +321,11 @@ namespace symbiosis {
       id r2 = s ? r : rm;
       emit_modrm(r1.register_value() & 7, r2.register_value() & 7, mod);
     }
+    void emit_one_r_op(uchar opcode, int rv, id rm, 
+        uchar op_prefix = 0x0, bool swapped = false ) {
+      id_register r(rv, rm.size());
+      emit_rm_op(opcode, r, rm, op_prefix, swapped);
+    }
     void emit_plus_op(uchar op, id r, int _64 = -1) {
       if (!r.is_register()) throw exception("Register expected");
       if (_64 == -1) _64 = r.is_64();
@@ -317,17 +333,24 @@ namespace symbiosis {
       emit_byte(op + (r.register_value() & 7)); 
     }
     virtual void store(id dest, id source) {
+      if (dest.is_imm()) throw exception("Can't store in immediate value");
+      if (dest.is_pointer()) throw exception("Pointers not yet supported");
       uchar *out_current_code_pos = out_c;
       if (source.is_pointer() && pic_mode) {
         emit_rm_op(I_LEA_8d, dest, source);
         emit(rip_relative_offset(out_current_code_pos, 
             source.virtual_adr), 4);
+      } else if (source.is_register() && dest.is_register()) {
+        if (source.register_value() == dest.register_value()) return;
+        emit_rm_op(I_MOV_r64_r64_89, source, dest);
       } else if (source.is_imm() || source.is_pointer()) {
-        bool _64 = source.is_64();
-        emit_plus_op(I_MOV_r64_imm64_b8, dest, _64);
-        //emit_rex_single(dest, _64);
-        //emit_byte(I_MOV_r64_imm64_b8 + (dest.register_value() & 7)); 
-        emit(_64 ? source.i64(): source.i32(), _64 ? 8 : 4);
+        if (source.long_value() == 0x0) {
+          emit_rm_op(I_XOR_r64_31, dest, dest);
+        } else {
+          bool _64 = source.is_64();
+          emit_plus_op(I_MOV_r64_imm64_b8, dest, _64);
+          emit(_64 ? source.i64(): source.i32(), source.size());
+        }
       }
     }
     void push(id p) { emit_plus_op(I_PUSH_r64_50, p); }
@@ -348,7 +371,7 @@ namespace symbiosis {
       emit(call_offset(out_current_code_pos, f), 4);
     }
     virtual void __vararg_call(void *f) {
-      emit_byte(I_XOR_30); emit_byte(0xc0); // xor    al,al
+      emit_byte(I_XOR_r8_30); emit_byte(0xc0); // xor    al,al
       __call(f);
     }
     virtual void mul(id dest, id b) { 
@@ -366,9 +389,55 @@ namespace symbiosis {
         }
       }
     }
-    virtual void div(id dest, id b) { }
-    virtual void add(id dest, id b) { }
-    virtual void sub(id dest, id b) { }
+    virtual void div(id dest, id b) { 
+      if (!dest.is_register()) throw exception("Dest must be register");
+      if (b.is_imm()) throw exception("op can't be immediate");
+
+      if (dest.is_signed()) {
+        printf("signed!\n");
+        // r: 7
+        id_register ax(I_REG_A, dest.size());
+        store(ax, dest);
+        __debug = true;
+        emit_byte(I_CDQ_99);
+        emit_one_r_op(I_DIV_rAX_r64_F7, 7, b);
+        store(dest, ax);
+      } else {
+        // r: 6
+        id_register dx(I_REG_D, dest.size());
+        store(dx, 0);
+        id_register ax(I_REG_A, dest.size());
+        store(ax, dest);
+        emit_one_r_op(I_DIV_rAX_r64_F7, 6, b);
+        store(dest, ax);
+      }
+    }
+    virtual void add(id dest, id b) { 
+      if (b.is_imm() && b.long_value() == 1) {
+        emit_one_r_op(I_INC_r64_FF, 0, dest);
+        return;
+      }
+      if (!dest.is_register()) throw exception("Dest must be register");
+      if (b.is_register()) {
+        emit_rm_op(I_ADD_r64_r64_01, dest, b);
+      } else if (b.is_imm()) {
+        if (b.size() > 4) throw exception("Operand is larger than 4 bytes");
+        if (dest.register_value() == I_REG_A) {
+          emit_rex_single(dest);
+          emit_byte(I_ADD_RAX_imm32_05);
+          emit(b.i32(), 4);
+        } else {
+          emit_one_r_op(I_ADD_r64_imm32_81, 0, dest);
+          emit(b.i32(), 4);
+        }
+      }
+    }
+    virtual void sub(id dest, id b) { 
+      if (b.is_imm() && b.long_value() == 1) {
+        emit_one_r_op(I_DEC_r64_FF, 1, dest);
+        return;
+      }
+    }
     void finish() { 
       perform_callbacks(function_cleanup);
       jmp(virtual_code_end); 

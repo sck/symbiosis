@@ -55,9 +55,14 @@ SYMBIOSIS_MAIN({
   add_parameter(123)(456); call(h1);
   auto a = new_var(3);
   auto b = new_var(3);
+  auto c = new_var(0);
   a.mul(b);
   a.mul(3);
   a.mul(2000);
+  a.div(a);
+  a.add(a);
+  a.add(2000);
+  a.add(1);
   add_parameter(id_new("Hello: "))(123)(456); call(h2);
   add_parameter(id_new("Hello")); call(h3);
 });
