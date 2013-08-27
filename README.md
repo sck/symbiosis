@@ -1,4 +1,4 @@
 symbiosis
 =========
 
-A hacky and lightweight compiler framework
+A lightweight, C++11-based code generator API for x64 and armv6

@@ -1,4 +1,4 @@
-// symbiosis: A framework for toy compilers
+// symbiosis: A code generator framework
 //
 #include "symbiosis.hpp"
 #include <sys/stat.h>
